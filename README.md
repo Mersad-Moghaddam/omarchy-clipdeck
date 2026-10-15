@@ -6,6 +6,9 @@ A beautiful, keyboard-first clipboard manager plugin for [Omarchy](https://omarc
 > **ClipDeck is an Omarchy shell plugin paired with a pure-Go daemon (`clipdeckd`).**
 > The UI is loaded directly by `omarchy-shell`, adapts reactively to your active Omarchy theme tokens (`Color.menu.*`, `Style.*`), and communicates with `clipdeckd` over a high-performance Unix domain socket with UID verification.
 
+> [!TIP]
+> ClipDeck is submitted to the [Omarchy community plugin marketplace](https://plugins.omarchy.org/) — or install straight from this repository with the one-liner below.
+
 ---
 
 ## Features
@@ -68,15 +71,33 @@ Switch themes and the deck follows instantly — no restart, no stale palette in
 
 ## Installation
 
-### 1. Install Daemon (`clipdeckd`)
-ClipDeck requires the Go backend daemon `clipdeckd`:
-```bash
-# Build & install via Go
-go install github.com/Mersad-Moghaddam/clipdeck/cmd/clipdeckd@latest
-go install github.com/Mersad-Moghaddam/clipdeck/cmd/clipdeck@latest
+### 1. Install the daemon (`clipdeckd`) — any distro
+ClipDeck pairs with the CGO-free Go daemon; every release ships `.deb`,
+`.rpm`, `.apk` and a portable tarball for `amd64` and `arm64`
+([releases](https://github.com/Mersad-Moghaddam/clipdeck/releases)):
 
-# Enable & start user service
+```bash
+# Debian / Ubuntu
+sudo apt install ./clipdeck_0.2.0_amd64.deb
+
+# Fedora / RHEL / openSUSE
+sudo dnf install ./clipdeck-0.2.0-1.x86_64.rpm
+
+# Alpine
+sudo apk add --allow-untrusted ./clipdeck_0.2.0_x86_64.apk
+
+# Arch (AUR)
+yay -S clipdeck
+
+# Any distro, portable installer (downloads or --from-source)
+curl -fsSL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/main/packaging/install.sh | bash
+```
+
+Then enable the user service (package installs enable it for you):
+
+```bash
 systemctl --user enable --now clipdeckd
+clipdeck doctor   # verify wl-clipboard, wtype, socket, database
 ```
 
 ### 2. Install Omarchy Plugin

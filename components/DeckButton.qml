@@ -2,15 +2,17 @@ import QtQuick
 import qs.Commons
 import "../overlay/DeckTheme.js" as DeckTheme
 
-// DeckButton: one themed button primitive for the whole overlay.
+// DeckButton: the overlay's one button primitive — deliberately quiet.
 //
-// Variants map onto shell state tokens instead of inventing fills:
-//   primary — accent fill, hue-preserving readable label
-//   ghost   — transparent, token hover/pressed fills (the default action look)
-//   danger  — urgent-tinted fill for destructive actions
-//
-// The optional `hint` renders as an inline keycap ("⏎", "⌃T") so action bars
-// double as discoverable keyboard documentation.
+// Minimal by contract: no borders, no shadows, no gradients. The shape is a
+// flat fill that appears on hover/press and disappears otherwise, in the
+// spirit of the shell's own panels. Variants:
+//   primary — the single accent-filled focal action
+//   ghost   — the default; fill only while hovered, pressed, or active
+//   danger  — urgent-colored label; fill only while hovered, pressed, or
+//             when it is the active choice (never a standing red block)
+// The optional `hint` is rendered as plain muted keycap text ("Enter",
+// "Ctrl+T") — documentation without another pill.
 Item {
   id: root
 
@@ -40,22 +42,14 @@ Item {
       return root.accent
     }
     if (root.danger) {
-      if (root.pressed) return Util.alpha(root.urgent, 0.3)
-      if (root.hovered) return Util.alpha(root.urgent, 0.22)
-      return Util.alpha(root.urgent, 0.14)
+      if (root.pressed) return Util.alpha(root.urgent, 0.26)
+      if (root.hovered) return Util.alpha(root.urgent, 0.16)
+      return "transparent"
     }
-    if (root.active) return Util.alpha(root.accent, 0.18)
+    if (root.active) return Util.alpha(root.accent, 0.14)
     if (root.pressed) return Style.pressedFill
     if (root.hovered) return Style.hoverFill
     return "transparent"
-  }
-
-  readonly property color borderColor: {
-    if (!root.enabled) return "transparent"
-    if (root.primary) return "transparent"
-    if (root.danger) return Util.alpha(root.urgent, root.hovered ? 0.75 : 0.45)
-    if (root.active) return Util.alpha(root.accent, 0.8)
-    return root.hovered ? Style.hoverBorderColor : Style.normalBorderColor
   }
 
   readonly property color labelColor: {
@@ -67,14 +61,14 @@ Item {
   }
 
   readonly property color hintColor: root.primary
-    ? Util.alpha(DeckTheme.onFill(root.accent), 0.65)
-    : Util.alpha(root.danger ? root.urgent : root.fg, 0.55)
+    ? Util.alpha(DeckTheme.onFill(root.accent), 0.6)
+    : Util.alpha(root.danger ? root.urgent : root.fg, 0.42)
 
-  readonly property int hPadding: root.compact ? Style.space(8) : Style.space(12)
-  readonly property int vPadding: root.compact ? Style.space(4) : Style.space(6)
+  readonly property int hPadding: root.compact ? Style.space(7) : Style.space(10)
+  readonly property int vPadding: root.compact ? Style.space(3) : Style.space(4)
 
   implicitWidth: layout.implicitWidth + root.hPadding * 2
-  implicitHeight: Math.max(Style.spacing.controlHeight, layout.implicitHeight + root.vPadding * 2)
+  implicitHeight: Math.max(root.compact ? Style.space(22) : Style.space(27), layout.implicitHeight + root.vPadding * 2)
 
   opacity: root.enabled ? 1.0 : 0.55
   Behavior on opacity { NumberAnimation { duration: 90 } }
@@ -84,11 +78,7 @@ Item {
     anchors.fill: parent
     radius: Math.min(Style.cornerRadius, height / 2)
     color: root.fill
-    border.color: root.borderColor
-    border.width: root.borderColor.a > 0 ? 1 : 0
-
     Behavior on color { ColorAnimation { duration: 90; easing.type: Easing.OutCubic } }
-    Behavior on border.color { ColorAnimation { duration: 90; easing.type: Easing.OutCubic } }
   }
 
   Row {
@@ -113,33 +103,23 @@ Item {
       anchors.verticalCenter: parent.verticalCenter
       text: root.label
       font.family: Style.font.menuFamily
-      font.pixelSize: Style.font.body
+      font.pixelSize: root.compact ? Style.font.caption : Style.font.body
       font.bold: root.primary
       color: root.labelColor
       elide: Text.ElideRight
       Behavior on color { ColorAnimation { duration: 90 } }
     }
 
-    // Inline keycap. Deliberately quiet: it documents the shortcut without
-    // competing with the action label.
-    Rectangle {
+    // Inline shortcut hint: plain muted mono text, no chip, no border.
+    Text {
+      id: hintText
       visible: root.hint !== ""
       anchors.verticalCenter: parent.verticalCenter
-      implicitWidth: hintText.implicitWidth + Style.space(7)
-      implicitHeight: hintText.implicitHeight + Style.space(2)
-      radius: Math.min(Style.cornerRadius, height / 2)
-      color: Util.alpha(root.hintColor, 0.14)
-      border.color: Util.alpha(root.hintColor, 0.35)
-      border.width: 1
-
-      Text {
-        id: hintText
-        anchors.centerIn: parent
-        text: root.hint
-        font.family: Style.font.family
-        font.pixelSize: Style.font.caption
-        color: root.hintColor
-      }
+      text: root.hint
+      font.family: Style.font.family
+      font.pixelSize: Style.font.caption
+      color: root.hintColor
+      Behavior on color { ColorAnimation { duration: 90 } }
     }
   }
 

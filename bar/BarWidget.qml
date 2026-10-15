@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import Quickshell
 import Quickshell.Io
 import QtQuick
@@ -35,19 +37,39 @@ BarWidget {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
-  Socket {
-    id: ipcSocket
-    path: root.socketPath
-    connected: false
+  // The socket lives behind a Loader so retries can recreate it: a Socket
+  // whose first connection attempt fails never connects again in Quickshell
+  // 0.3.1, and the bar must recover when the daemon restarts.
+  readonly property var ipcSocket: ipcLoader.item
 
-    onConnectionStateChanged: {
-      root.connected = ipcSocket.connected
-      if (ipcSocket.connected) root.requestStatus()
-    }
+  Loader {
+    id: ipcLoader
+    sourceComponent: ipcComp
+  }
 
-    parser: SplitParser {
-      splitMarker: "\n"
-      onRead: function (data) { root.handleIpcMessage(data) }
+  Timer {
+    id: ipcKick
+    interval: 16
+    repeat: false
+    onTriggered: ipcLoader.active = true
+  }
+
+  Component {
+    id: ipcComp
+    Socket {
+      id: barSock
+      path: root.socketPath
+      connected: true
+
+      onConnectionStateChanged: {
+        root.connected = barSock.connected
+        if (barSock.connected) root.requestStatus()
+      }
+
+      parser: SplitParser {
+        splitMarker: "\n"
+        onRead: function (data) { root.handleIpcMessage(data) }
+      }
     }
   }
 
@@ -56,7 +78,11 @@ BarWidget {
     interval: 3000
     repeat: true
     running: !root.connected
-    onTriggered: if (!ipcSocket.connected) ipcSocket.connected = true
+    onTriggered: {
+      if (root.connected) return
+      ipcLoader.active = false   // fresh socket: errored ones never retry
+      ipcKick.restart()
+    }
   }
 
   // Safety net for missed events (retention purges, TTL expiry) — cheap
@@ -70,13 +96,13 @@ BarWidget {
   }
 
   function requestStatus() {
-    if (!ipcSocket.connected) return
+    if (!ipcSocket || !ipcSocket.connected) return
     ipcSocket.write(JSON.stringify({ id: "status-poll", method: "status", params: null }) + "\n")
     ipcSocket.flush()
   }
 
   function togglePause() {
-    if (!ipcSocket.connected) return
+    if (!ipcSocket || !ipcSocket.connected) return
     ipcSocket.write(JSON.stringify({ id: "pause-toggle", method: "pause", params: { paused: !root.isPaused } }) + "\n")
     ipcSocket.flush()
   }
@@ -97,10 +123,6 @@ BarWidget {
         root.isPaused = msg.result.paused === true
       }
     } catch (e) {}
-  }
-
-  Component.onCompleted: {
-    ipcSocket.connected = true
   }
 
   WidgetButton {

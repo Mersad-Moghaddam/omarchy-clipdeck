@@ -1,11 +1,14 @@
 import QtQuick
 import qs.Commons
-import "../overlay/DeckTheme.js" as DeckTheme
 
-// DeckChip: category filter pill for the ClipDeck rail. The active chip takes
-// the accent fill (with a hue-preserving readable label); inactive chips stay
-// quiet until hovered. Counts include the category's current item count so the
-// rail doubles as a distribution summary.
+// DeckChip: category filter chip for the ClipDeck rail — flat and quiet.
+//
+// Inactive chips are bare text (no fill, no border) and only pick up a
+// faint fill on hover. The active chip uses the menu surface's own
+// selected tokens (selectedBackground / selectedText), exactly like the
+// built-in clipboard list, so the rail reads as part of the shell rather
+// than a custom widget. Counts stay muted so the label is what the eye
+// lands on.
 Item {
   id: root
 
@@ -16,29 +19,27 @@ Item {
   signal clicked()
 
   readonly property bool hovered: mouse.containsMouse
-  readonly property color accent: Color.accent
   readonly property color fg: Color.menu.text
+  readonly property color selectedFill: Color.menu.selectedBackground
+  readonly property color selectedText: Color.menu.selectedText
 
-  implicitWidth: content.implicitWidth + Style.space(18)
-  implicitHeight: Math.max(Style.space(24), content.implicitHeight + Style.space(8))
+  implicitWidth: content.implicitWidth + Style.space(16)
+  implicitHeight: Math.max(Style.space(22), content.implicitHeight + Style.space(6))
 
   Rectangle {
     id: bg
     anchors.fill: parent
     radius: height / 2
     color: root.active
-      ? root.accent
-      : (root.hovered ? Util.alpha(root.fg, 0.09) : Util.alpha(root.fg, 0.04))
-    border.color: root.active ? "transparent" : Util.alpha(root.fg, root.hovered ? 0.24 : 0.12)
-    border.width: root.active ? 0 : 1
-
+      ? root.selectedFill
+      : (root.hovered ? Util.alpha(root.fg, 0.07) : "transparent")
     Behavior on color { ColorAnimation { duration: 100; easing.type: Easing.OutCubic } }
   }
 
   Row {
     id: content
     anchors.centerIn: parent
-    spacing: Style.space(6)
+    spacing: Style.space(5)
 
     Text {
       anchors.verticalCenter: parent.verticalCenter
@@ -46,7 +47,8 @@ Item {
       font.family: Style.font.menuFamily
       font.pixelSize: Style.font.caption
       font.bold: root.active
-      color: root.active ? DeckTheme.onFill(root.accent) : root.fg
+      color: root.active ? root.selectedText : Util.alpha(root.fg, root.hovered ? 1.0 : 0.78)
+      Behavior on color { ColorAnimation { duration: 100 } }
     }
 
     Text {
@@ -55,9 +57,7 @@ Item {
       text: root.count
       font.family: Style.font.family
       font.pixelSize: Style.font.caption
-      color: root.active
-        ? Util.alpha(DeckTheme.onFill(root.accent), 0.7)
-        : Util.alpha(root.fg, 0.45)
+      color: root.active ? Util.alpha(root.selectedText, 0.65) : Util.alpha(root.fg, 0.38)
     }
   }
 

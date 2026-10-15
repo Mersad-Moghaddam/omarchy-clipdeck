@@ -149,7 +149,7 @@ Item {
   readonly property int rpcTimeoutMs: 8000
 
   function rpc(method, params, callback) {
-    if (!ipc.connected) {
+    if (!ipc || !ipc.connected) {
       if (callback) callback(null, "daemon offline")
       return
     }
@@ -208,11 +208,13 @@ Item {
   }
 
   function connect() {
-    if (!ipc.connected) {
-      root.conn = "connecting"
-      ipc.path = root.socketPath
-      ipc.connected = true
-    }
+    if (root.conn === "online") return
+    root.conn = "connecting"
+    // Quickshell 0.3.1 keeps an errored QLocalSocket alive and ignores any
+    // later connected=true write, so a failed attempt can only be retried
+    // by recreating the socket object entirely.
+    ipcLoader.active = false
+    ipcKick.restart()
   }
 
   // ---- Data flow ------------------------------------------------------------
@@ -330,7 +332,8 @@ Item {
   // ---- View helpers -----------------------------------------------------------
   function canOpen(item) {
     if (!item) return false
-    return item.type === "link" || item.type === "file" || item.type === "path" || item.type === "image"
+    return item.type === "link" || item.type === "file" || item.type === "path"
+      || item.type === "image" || item.type === "email" || item.type === "phone"
   }
 
   function isRichPreviewVisible() {
@@ -479,10 +482,35 @@ Item {
   }
 
   function openExternal(item) {
-    if (!item || !item.content) return
-    var isPath = item.type === "file" || item.type === "path"
-    var url = isPath ? Util.fileUrl(item.content) : item.content
-    Util.execArgv(["xdg-open", url])
+    if (!item) return
+    var args = ["xdg-open"]
+    if (item.type === "image") {
+      // Images carry their payload in the blob, not in content.
+      var blob = item.blob_path && item.blob_path !== "" ? item.blob_path : item.thumbnail_path
+      if (!blob || blob === "") return
+      args.push(Util.fileUrl(blob))
+    } else if (item.type === "file") {
+      // URI lists can hold several files; xdg-open accepts them in one go.
+      var paths = String(item.content || "").split("\n")
+      for (var i = 0; i < paths.length; i++) {
+        var p = paths[i].trim()
+        if (p !== "") args.push(Util.fileUrl(p))
+      }
+      if (args.length === 1) return
+    } else if (item.type === "path") {
+      if (!item.content) return
+      args.push(Util.fileUrl(item.content.trim()))
+    } else if (item.type === "email") {
+      if (!item.content) return
+      args.push("mailto:" + item.content.trim())
+    } else if (item.type === "phone") {
+      if (!item.content) return
+      args.push("tel:" + item.content.replace(/[^+0-9]/g, ""))
+    } else {
+      if (!item.content) return
+      args.push(item.content)
+    }
+    Util.execArgv(args)
     root.close()
   }
 
@@ -768,27 +796,48 @@ Item {
   }
 
   // ---- Daemon connection ------------------------------------------------------
-  Socket {
-    id: ipc
-    path: root.socketPath
-    connected: false
+  // The socket lives behind a Loader so retries can recreate it: a Socket
+  // whose first connection attempt fails never connects again in Quickshell
+  // 0.3.1 (the dead QLocalSocket is kept internally and later
+  // connected=true writes are no-ops).
+  readonly property var ipc: ipcLoader.item
 
-    onConnectionStateChanged: {
-      if (ipc.connected) {
-        root.conn = "online"
-        root.refresh()
-      } else if (root.conn === "online") {
+  Loader {
+    id: ipcLoader
+    sourceComponent: ipcComp
+  }
+
+  Timer {
+    id: ipcKick
+    interval: 16
+    repeat: false
+    onTriggered: ipcLoader.active = true
+  }
+
+  Component {
+    id: ipcComp
+    Socket {
+      id: ipcSock
+      path: root.socketPath
+      connected: true
+
+      onConnectionStateChanged: {
+        if (ipcSock.connected) {
+          root.conn = "online"
+          root.refresh()
+        } else if (root.conn === "online") {
+          root.conn = "offline"
+        }
+      }
+
+      onError: function (error) {
         root.conn = "offline"
       }
-    }
 
-    onError: function (error) {
-      root.conn = "offline"
-    }
-
-    parser: SplitParser {
-      splitMarker: "\n"
-      onRead: function (line) { root.handleMessage(line) }
+      parser: SplitParser {
+        splitMarker: "\n"
+        onRead: function (line) { root.handleMessage(line) }
+      }
     }
   }
 
@@ -942,43 +991,33 @@ Item {
               }
             }
 
-            // Capture state pill (click to pause/resume).
+            // Capture state: a bare dot + lowercase label, click to
+            // pause/resume. No pill chrome — the state is information, not
+            // decoration.
             Item {
               Layout.alignment: Qt.AlignVCenter
-              implicitWidth: capturePill.implicitWidth
-              implicitHeight: capturePill.implicitHeight
+              implicitWidth: captureRow.implicitWidth
+              implicitHeight: Math.max(captureRow.implicitHeight, Style.space(22))
 
-              Rectangle {
-                id: capturePill
+              Row {
+                id: captureRow
                 anchors.centerIn: parent
-                implicitWidth: captureRow.implicitWidth + Style.space(16)
-                implicitHeight: Style.space(24)
-                radius: height / 2
-                color: root.isPaused ? Util.alpha(root.urgent, 0.16) : Util.alpha(root.accent, 0.14)
-                border.color: root.isPaused ? Util.alpha(root.urgent, 0.7) : Util.alpha(root.accent, 0.55)
-                border.width: 1
+                spacing: Style.space(5)
 
-                Row {
-                  id: captureRow
-                  anchors.centerIn: parent
-                  spacing: Style.space(6)
+                Rectangle {
+                  anchors.verticalCenter: parent.verticalCenter
+                  width: Style.space(6)
+                  height: Style.space(6)
+                  radius: width / 2
+                  color: root.isPaused ? root.urgent : Util.alpha(root.accent, 0.9)
+                }
 
-                  Rectangle {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: Style.space(6)
-                    height: Style.space(6)
-                    radius: width / 2
-                    color: root.isPaused ? root.urgent : root.accent
-                  }
-
-                  Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: root.isPaused ? "PAUSED" : "RECORDING"
-                    font.family: root.fontFam
-                    font.pixelSize: Style.font.caption
-                    font.bold: true
-                    color: root.isPaused ? root.urgent : root.accent
-                  }
+                Text {
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: root.isPaused ? "paused" : "recording"
+                  font.family: root.fontFam
+                  font.pixelSize: Style.font.caption
+                  color: root.isPaused ? root.urgent : Util.alpha(root.fg, 0.5)
                 }
               }
 
@@ -995,11 +1034,9 @@ Item {
             Rectangle {
               Layout.fillWidth: true
               Layout.alignment: Qt.AlignVCenter
-              Layout.preferredHeight: Style.space(34)
+              Layout.preferredHeight: Style.space(32)
               radius: Math.min(root.radius, height / 2)
               color: root.ghostFill
-              border.color: root.searchLen > 0 ? Util.alpha(root.accent, 0.65) : root.hairline
-              border.width: 1
 
               Item {
                 anchors.fill: parent
@@ -1048,32 +1085,22 @@ Item {
               }
             }
 
-            // Multi-select counter / shown count.
-            Rectangle {
+            // Shown / selected count — plain text, no pill.
+            Text {
+              id: countText
               Layout.alignment: Qt.AlignVCenter
-              implicitWidth: countText.implicitWidth + Style.space(14)
-              implicitHeight: Style.space(24)
-              radius: height / 2
-              color: root.hasSelection ? root.accent : root.ghostFill
-              border.color: root.hasSelection ? "transparent" : root.hairline
-              border.width: root.hasSelection ? 0 : 1
-
-              Text {
-                id: countText
-                anchors.centerIn: parent
-                text: root.hasSelection ? root.selectedIds.length + " selected" : root.filteredItems.length + " shown"
-                font.family: root.fontFam
-                font.pixelSize: Style.font.caption
-                font.bold: root.hasSelection
-                color: root.hasSelection ? root.onAccent : Util.alpha(root.fg, 0.6)
-              }
+              text: root.hasSelection ? root.selectedIds.length + " selected" : root.filteredItems.length + " shown"
+              font.family: root.fontFam
+              font.pixelSize: Style.font.caption
+              color: root.hasSelection ? root.accent : Util.alpha(root.fg, 0.45)
+              Behavior on color { ColorAnimation { duration: 90 } }
             }
 
             // Close.
             Rectangle {
               Layout.alignment: Qt.AlignVCenter
-              implicitWidth: Style.space(26)
-              implicitHeight: Style.space(26)
+              implicitWidth: Style.space(24)
+              implicitHeight: Style.space(24)
               radius: Math.min(root.radius, height / 2)
               color: closeMouse.containsMouse ? root.raisedFill : "transparent"
 
@@ -1082,7 +1109,7 @@ Item {
                 text: "×"
                 font.family: root.fontFam
                 font.pixelSize: Style.font.subtitle
-                color: Util.alpha(root.fg, 0.75)
+                color: Util.alpha(root.fg, 0.6)
               }
 
               MouseArea {
@@ -1198,13 +1225,13 @@ Item {
                 readonly property var colorInfo: row.isColor ? DeckTheme.parseColorValue(row.modelData.content) : null
 
                 width: itemsList.width
-                height: Style.space(58)
-                radius: Math.min(root.radius, Style.space(10))
+                height: Style.space(50)
+                radius: Math.min(root.radius, Style.space(8))
+                // Minimal selection language: fills and the spine only —
+                // no borders, so the list reads as one quiet surface.
                 color: row.chosen
-                  ? Util.alpha(root.accent, 0.12)
+                  ? Util.alpha(root.accent, 0.10)
                   : (row.current ? root.selFill : (row.hot ? root.ghostFill : "transparent"))
-                border.color: row.chosen ? Util.alpha(root.accent, 0.65) : (row.current ? Util.alpha(root.accent, 0.5) : "transparent")
-                border.width: 1
 
                 Behavior on color { ColorAnimation { duration: 90; easing.type: Easing.OutCubic } }
 
@@ -1221,9 +1248,9 @@ Item {
 
                 RowLayout {
                   anchors.fill: parent
-                  anchors.leftMargin: Style.space(12)
-                  anchors.rightMargin: Style.space(10)
-                  spacing: Style.space(10)
+                  anchors.leftMargin: Style.space(10)
+                  anchors.rightMargin: Style.space(8)
+                  spacing: Style.space(9)
 
                   // Selection checkbox — passive indicator; hit-testing is
                   // done by the row's single MouseArea below (no nested areas).
@@ -1252,14 +1279,12 @@ Item {
                   // Type badge: color swatch, thumbnail, or three-letter tag.
                   Rectangle {
                     Layout.alignment: Qt.AlignVCenter
-                    Layout.preferredWidth: Style.space(36)
-                    Layout.preferredHeight: Style.space(34)
-                    radius: Math.min(root.radius, Style.space(8))
+                    Layout.preferredWidth: Style.space(32)
+                    Layout.preferredHeight: Style.space(30)
+                    radius: Math.min(root.radius, Style.space(7))
                     color: row.isColor && row.colorInfo.ok
                       ? row.colorInfo.hex
                       : (row.hasThumb ? "transparent" : root.raisedFill)
-                    border.color: row.isColor && row.colorInfo.ok ? Util.alpha(root.fg, 0.25) : root.hairlineSoft
-                    border.width: 1
                     clip: true
 
                     Text {
@@ -1346,24 +1371,14 @@ Item {
                     }
                   }
 
-                  // Quick-paste keycap for the first nine rows.
-                  Rectangle {
+                  // Quick-paste digit for the first nine rows — bare text.
+                  Text {
                     Layout.alignment: Qt.AlignVCenter
                     visible: row.index < 9 && (row.hot || row.current)
-                    implicitWidth: Style.space(14)
-                    implicitHeight: Style.space(14)
-                    radius: Style.space(3)
-                    color: "transparent"
-                    border.color: Util.alpha(root.fg, 0.35)
-                    border.width: 1
-
-                    Text {
-                      anchors.centerIn: parent
-                      text: row.index + 1
-                      font.family: root.fontFam
-                      font.pixelSize: Style.font.caption
-                      color: Util.alpha(root.fg, 0.5)
-                    }
+                    text: row.index + 1
+                    font.family: root.fontFam
+                    font.pixelSize: Style.font.caption
+                    color: Util.alpha(root.fg, 0.4)
                   }
                 }
 
@@ -1463,8 +1478,6 @@ Item {
                 implicitHeight: Style.space(26)
                 radius: height / 2
                 color: root.conn === "connecting" ? Util.alpha(root.accent, 0.14) : Util.alpha(root.urgent, 0.16)
-                border.color: root.conn === "connecting" ? Util.alpha(root.accent, 0.5) : Util.alpha(root.urgent, 0.6)
-                border.width: 1
 
                 Text {
                   id: offlinePill
@@ -1505,8 +1518,6 @@ Item {
                 implicitHeight: Style.space(30)
                 radius: Math.min(root.radius, height / 2)
                 color: root.ghostFill
-                border.color: root.hairline
-                border.width: 1
 
                 Text {
                   id: offlineCmd
@@ -1553,12 +1564,10 @@ Item {
 
                 Rectangle {
                   Layout.alignment: Qt.AlignVCenter
-                  implicitWidth: Style.space(38)
-                  implicitHeight: Style.space(38)
-                  radius: Math.min(root.radius, Style.space(9))
+                  implicitWidth: Style.space(34)
+                  implicitHeight: Style.space(34)
+                  radius: Math.min(root.radius, Style.space(8))
                   color: root.activeItem !== null && root.activeItem.type === "color" ? root.swatchOf(root.activeItem) : root.raisedFill
-                  border.color: root.hairlineSoft
-                  border.width: 1
 
                   Text {
                     anchors.centerIn: parent
@@ -1650,8 +1659,6 @@ Item {
                 Layout.fillHeight: true
                 radius: Math.min(root.radius, Style.space(10))
                 color: root.ghostFill
-                border.color: root.hairlineSoft
-                border.width: 1
                 clip: true
 
                 // 1. Color: hero swatch plus copy-ready representations.
@@ -1666,8 +1673,6 @@ Item {
                     Layout.preferredHeight: Style.space(110)
                     radius: Math.min(root.radius, Style.space(12))
                     color: root.swatchOf(root.activeItem)
-                    border.color: Util.alpha(root.fg, 0.25)
-                    border.width: 1
 
                     Text {
                       anchors.centerIn: parent
@@ -1707,8 +1712,6 @@ Item {
                       implicitHeight: Style.space(30)
                       radius: Math.min(root.radius, height / 2)
                       color: fmtMouse.containsMouse ? root.raisedFill : "transparent"
-                      border.color: root.hairlineSoft
-                      border.width: 1
 
                       RowLayout {
                         anchors.fill: parent
@@ -1778,8 +1781,6 @@ Item {
                     implicitHeight: Style.space(22)
                     radius: height / 2
                     color: Util.alpha(root.bg, 0.75)
-                    border.color: root.hairline
-                    border.width: 1
 
                     Text {
                       id: dimsText
@@ -1805,8 +1806,6 @@ Item {
                     implicitHeight: Style.space(26)
                     radius: height / 2
                     color: Util.alpha(root.accent, 0.14)
-                    border.color: Util.alpha(root.accent, 0.5)
-                    border.width: 1
 
                     Text {
                       id: linkDomain
@@ -1949,15 +1948,16 @@ Item {
                 visible: root.selectedIds.length > 1
 
                 DeckButton {
-                  Layout.fillWidth: true
+                  compact: true
                   variant: "primary"
-                  label: "Merge " + root.selectedIds.length + " & copy"
+                  label: "Merge " + root.selectedIds.length
                   hint: "Enter"
                   onClicked: root.mergeSelection("\n", false)
                 }
 
                 DeckButton {
-                  label: "& paste"
+                  compact: true
+                  label: "Merge & paste"
                   hint: "Shift+Enter"
                   onClicked: root.mergeSelection("\n", true)
                 }
@@ -1997,26 +1997,29 @@ Item {
                 visible: root.selectedIds.length <= 1
 
                 DeckButton {
-                  Layout.fillWidth: true
+                  compact: true
                   variant: "primary"
-                  label: "Paste to active window"
+                  label: "Paste"
                   hint: "Enter"
                   onClicked: root.pasteItem(root.activeItem, {})
                 }
 
                 DeckButton {
+                  compact: true
                   label: "Plain"
                   hint: "Shift+Enter"
                   onClicked: root.pasteItem(root.activeItem, { plain: true })
                 }
 
                 DeckButton {
+                  compact: true
                   label: "Copy"
                   hint: "Ctrl+C"
                   onClicked: root.copyItem(root.activeItem, {})
                 }
 
                 DeckButton {
+                  compact: true
                   visible: root.canOpen(root.activeItem)
                   label: "Open"
                   hint: "Alt+Enter"
@@ -2024,6 +2027,7 @@ Item {
                 }
 
                 DeckButton {
+                  compact: true
                   visible: root.activeItem !== null && root.activeItem.type !== "image"
                   label: "Transform"
                   hint: "Ctrl+T"
@@ -2100,8 +2104,6 @@ Item {
                     implicitHeight: Style.space(16)
                     radius: Style.space(3)
                     color: root.ghostFill
-                    border.color: root.hairlineSoft
-                    border.width: 1
 
                     Text {
                       id: footerKey
@@ -2168,8 +2170,6 @@ Item {
           implicitHeight: Style.space(30)
           radius: height / 2
           color: root.toastOk ? root.accent : root.urgent
-          border.color: Util.alpha(DeckTheme.onFill(root.toastOk ? root.accent : root.urgent), 0.2)
-          border.width: 1
 
           Row {
             id: toastRow
@@ -2285,8 +2285,6 @@ Item {
                 Layout.preferredHeight: Style.space(32)
                 radius: Math.min(root.radius, height / 2)
                 color: root.ghostFill
-                border.color: root.transformQuery !== "" ? Util.alpha(root.accent, 0.6) : root.hairline
-                border.width: 1
 
                 Text {
                   anchors.verticalCenter: parent.verticalCenter
@@ -2323,7 +2321,7 @@ Item {
                     || root.filteredTransforms[trRow.index - 1].group !== trRow.modelData.group
 
                   width: transformList.width
-                  height: (trRow.newGroup ? Style.space(24) : 0) + Style.space(42)
+                  height: (trRow.newGroup ? Style.space(24) : 0) + Style.space(38)
 
                   Text {
                     id: groupHeader
@@ -2342,13 +2340,11 @@ Item {
                     id: trPill
                     anchors.top: groupHeader.visible ? groupHeader.bottom : parent.top
                     width: parent.width
-                    height: Style.space(40)
+                    height: Style.space(36)
                     radius: Math.min(root.radius, Style.space(8))
                     color: root.transformIndex === trRow.index
                       ? Util.alpha(root.accent, 0.16)
                       : (trHover.containsMouse ? root.ghostFill : "transparent")
-                    border.color: root.transformIndex === trRow.index ? Util.alpha(root.accent, 0.6) : "transparent"
-                    border.width: 1
 
                     Behavior on color { ColorAnimation { duration: 80 } }
 
@@ -2425,8 +2421,6 @@ Item {
                 Layout.preferredHeight: Style.space(96)
                 radius: Math.min(root.radius, Style.space(8))
                 color: root.ghostFill
-                border.color: root.hairlineSoft
-                border.width: 1
                 clip: true
 
                 Text {
