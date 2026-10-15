@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.mersadmoghaddam.clipdeck",
+  "name": "ClipDeck",
+  "version": "0.1.0",
+  "author": "Mersad Moghaddam",
+  "license": "MIT",
+  "description": "A beautiful, keyboard-first clipboard manager with persistent history, rich previews, and quiet intelligence.",
+  "kinds": [
+    "overlay",
+    "bar-widget"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "overlay": "overlay/ClipDeck.qml",
+    "barWidget": "bar/BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "ClipDeck",
+    "description": "Quick status and summon button for ClipDeck clipboard manager",
+    "category": "Productivity",
+    "defaultSection": "right",
+    "allowMultiple": false
+  }
+}

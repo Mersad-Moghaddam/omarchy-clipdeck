@@ -1,0 +1,30 @@
+name: Validate Plugin
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check manifest structure
+        run: |
+          jq -e . manifest.json
+          jq -e '.schemaVersion == 1' manifest.json
+          jq -e 'has("id") and has("name") and has("version") and has("kinds") and has("entryPoints")' manifest.json
+
+      - name: Verify no symlinks
+        run: |
+          symlinks=$(find . -name .git -prune -o -type l -print)
+          if [ -n "$symlinks" ]; then
+            echo "Symlinks detected:"
+            echo "$symlinks"
+            exit 1
+          fi
