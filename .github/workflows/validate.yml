@@ -28,3 +28,24 @@ jobs:
             echo "$symlinks"
             exit 1
           fi
+
+      - name: Check entry point files exist
+        run: |
+          for f in $(jq -r '.entryPoints[]' manifest.json); do
+            test -f "$f" || { echo "Missing entry point: $f"; exit 1; }
+          done
+
+      - name: Guard against hardcoded palette colors
+        run: |
+          # Every color must come from Omarchy theme tokens (Color.*, Style.*,
+          # DeckTheme mixes) — literal hex/rgb/hsl values are rejected.
+          if grep -rnE '#[0-9a-fA-F]{3,8}\b|rgb\(|hsl\(' --include='*.qml' .; then
+            echo "Hardcoded colors found in QML — use theme tokens instead."
+            exit 1
+          fi
+
+      - name: Syntax-check DeckTheme.js
+        run: |
+          # .pragma library is QML-specific; strip it before asking node.
+          grep -v '^\.pragma' overlay/DeckTheme.js > /tmp/decktheme.js
+          node --check /tmp/decktheme.js
