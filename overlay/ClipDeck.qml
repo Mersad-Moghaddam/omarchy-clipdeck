@@ -443,17 +443,30 @@ Item {
       || item.type === "image" || item.type === "email" || item.type === "phone"
   }
 
-  function isRichPreviewVisible() {
+  readonly property bool hasRichPreview: {
     var it = root.activeItem
     if (it === null) return false
     if (it.type !== "code" && it.type !== "json") return false
-    return root.currentPreview() !== ""
+    return !!(it.rich_preview && it.rich_preview.length > 0)
+  }
+
+  readonly property string currentRichPreview: {
+    if (!root.hasRichPreview) return ""
+    return DeckTheme.markup(root.activeItem.rich_preview, root.syntax)
+  }
+
+  readonly property bool isPreviewRTL: {
+    var it = root.activeItem
+    if (!it) return false
+    return DeckTheme.isRTL(it.preview || it.content)
+  }
+
+  function isRichPreviewVisible() {
+    return root.hasRichPreview
   }
 
   function currentPreview() {
-    var item = root.activeItem
-    if (!item || !item.rich_preview) return ""
-    return DeckTheme.markup(item.rich_preview, root.syntax)
+    return root.currentRichPreview
   }
 
   function plainContent(item) {
@@ -461,7 +474,11 @@ Item {
     if (item.sensitive === true && !root.isRevealed(item.id)) {
       return item.masked_content && item.masked_content !== "" ? item.masked_content : "••••••••••••"
     }
-    return item.content || ""
+    var c = item.content || ""
+    if (c.length > 32768) {
+      return c.slice(0, 32768) + "\n\n... (preview truncated to 32 KB in inspector)"
+    }
+    return c
   }
 
   function swatchOf(item) {
@@ -1746,7 +1763,7 @@ Item {
                   Rectangle {
                     anchors.fill: parent
                     radius: Style.space(6)
-                    color: Util.alpha(root.cardBg, 0.95)
+                    color: Util.alpha(root.bg, 0.95)
                     border.color: root.hairlineSoft
                     border.width: 1
                   }
@@ -2276,22 +2293,22 @@ Item {
                   id: codeScroll
                   anchors.fill: parent
                   anchors.margins: Style.space(10)
-                  visible: root.isRichPreviewVisible()
-                  contentWidth: DeckTheme.isRTL(codeText.text) ? width : Math.max(width, codeText.paintedWidth)
+                  visible: root.hasRichPreview
+                  contentWidth: root.isPreviewRTL ? width : Math.max(width, codeText.paintedWidth)
                   contentHeight: Math.max(height, codeText.paintedHeight)
                   clip: true
                   boundsBehavior: Flickable.StopAtBounds
 
                   Text {
                     id: codeText
-                    width: DeckTheme.isRTL(text) ? codeScroll.width : undefined
-                    text: root.currentPreview()
+                    width: root.isPreviewRTL ? codeScroll.width : undefined
+                    text: root.currentRichPreview
                     textFormat: Text.RichText
-                    font.family: DeckTheme.isRTL(text) ? root.fontFam : root.codeFam
+                    font.family: root.isPreviewRTL ? root.fontFam : root.codeFam
                     font.pixelSize: Style.font.body
-                    lineHeight: DeckTheme.isRTL(text) ? 1.45 : 1.2
-                    wrapMode: DeckTheme.isRTL(text) ? Text.WrapAtWordBoundaryOrAnywhere : Text.NoWrap
-                    horizontalAlignment: DeckTheme.isRTL(text) ? Text.AlignRight : Text.AlignLeft
+                    lineHeight: root.isPreviewRTL ? 1.45 : 1.2
+                    wrapMode: root.isPreviewRTL ? Text.WrapAtWordBoundaryOrAnywhere : Text.NoWrap
+                    horizontalAlignment: root.isPreviewRTL ? Text.AlignRight : Text.AlignLeft
                     color: root.fg
                   }
                 }
@@ -2305,7 +2322,7 @@ Item {
                     && root.activeItem.type !== "image"
                     && root.activeItem.type !== "color"
                     && root.activeItem.type !== "link"
-                    && !root.isRichPreviewVisible()
+                    && !root.hasRichPreview
                   contentWidth: width
                   contentHeight: plainText.paintedHeight
                   clip: true
@@ -2317,11 +2334,11 @@ Item {
                     text: root.plainContent(root.activeItem)
                     font.family: root.fontFam
                     font.pixelSize: Style.font.body
-                    lineHeight: DeckTheme.isRTL(text) ? 1.5 : 1.25
+                    lineHeight: root.isPreviewRTL ? 1.5 : 1.25
                     color: root.fg
                     textFormat: Text.PlainText
                     wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                    horizontalAlignment: DeckTheme.isRTL(text) ? Text.AlignRight : Text.AlignLeft
+                    horizontalAlignment: root.isPreviewRTL ? Text.AlignRight : Text.AlignLeft
                   }
                 }
 

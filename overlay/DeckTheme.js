@@ -127,6 +127,9 @@ function classColor(cls, pal) {
   return pal.fg
 }
 
+var _markupCache = {}
+var _markupCacheOrder = []
+
 // markup() converts the daemon's class-based markup into rich text the Qt
 // rich-text engine can render with theme colors. It returns "" when the
 // markup predates the class format (v0.1.0 inline palette) so callers fall
@@ -135,7 +138,19 @@ function markup(src, pal) {
   if (!src || !pal) return ""
   if (String(src).indexOf('class="t-') === -1) return ""
 
-  var out = String(src)
+  var key = src.length + ":" + src.slice(0, 32) + ":" + (pal.accent || "") + ":" + (pal.comment || "")
+  if (_markupCache[key]) {
+    return _markupCache[key]
+  }
+
+  var raw = String(src)
+  // Cap at 90 lines so Qt RichText layout stays under 16ms even on huge clips
+  var lines = raw.split("<br/>")
+  if (lines.length > 90) {
+    raw = lines.slice(0, 90).join("<br/>") + "<br/><span class=\"t-comment\">&middot;&middot;&middot; (" + (lines.length - 90) + " more lines not shown in preview)</span>"
+  }
+
+  var out = raw
   // Strip any defensive leftovers: a v0.1.0 payload or a future change must
   // never smuggle inline styles into the themed surface.
   out = out.replace(/ style="[^"]*"/g, "")
@@ -144,6 +159,12 @@ function markup(src, pal) {
     var color = classColor(cls, pal)
     return color ? 'style="color:' + color + '"' : ""
   })
+
+  if (_markupCacheOrder.length >= 32) {
+    delete _markupCache[_markupCacheOrder.shift()]
+  }
+  _markupCacheOrder.push(key)
+  _markupCache[key] = out
   return out
 }
 
