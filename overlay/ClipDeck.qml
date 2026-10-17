@@ -8,6 +8,7 @@ import QtQuick.Layouts
 import qs.Commons
 import qs.Ui
 import "./DeckTheme.js" as DeckTheme
+import "./QueryState.js" as QueryState
 import "../components"
 
 // ClipDeck overlay — a keyboard-first, theme-native view over the clipdeckd
@@ -52,6 +53,8 @@ Item {
   property string conn: "idle" // idle | connecting | online | offline
   property bool isPaused: false
   property string daemonVersion: ""
+  property int queryGeneration: 0
+  property bool hasMore: false
   property int totalItems: 0
   property real nowMs: Date.now()
 
@@ -234,6 +237,8 @@ Item {
     root.confirmOpen = false
     root.selectedIds = []
     root.revealedIds = []
+    root.itemCache = ({})
+    root.queryGeneration++
   }
 
   function toggle() {
@@ -253,6 +258,7 @@ Item {
 
   // ---- Data flow ------------------------------------------------------------
   function refresh() {
+    root.queryGeneration++
     searchDebounce.restart()
   }
 
@@ -260,11 +266,16 @@ Item {
     if (root.conn !== "online") return
     root.loading = true
     var q = root.searchQuery.trim()
-    var method = q === "" ? "list" : "search"
-    var params = q === "" ? { limit: 200 } : { query: q, limit: 200 }
-    root.rpc(method, params, function (res, err) {
+    var generation = root.queryGeneration
+    root.rpc("query", QueryState.options(q, root.activeCategory, 0), function (res, err) {
+      if (!QueryState.isCurrent(generation, root.queryGeneration)) return
       root.loading = false
-      if (err || !res) return
+      if (err || !res) {
+        root.notify("Search needs an updated ClipDeck daemon; run clipdeck doctor", false)
+        return
+      }
+      root.hasMore = res.has_more === true
+      root.itemCache = ({})
       root.items = res.items || []
       root.applyFilter()
     })
@@ -332,6 +343,7 @@ Item {
     root.selectedIndex = 0
     root.selectedId = "" // re-anchor to the new category's first row
     root.applyFilter()
+    root.refresh()
   }
 
   // setSelection moves the cursor AND re-anchors it to that clip.
@@ -351,6 +363,21 @@ Item {
   function selectEdge(last) {
     if (root.filteredItems.length === 0) return
     root.setSelection(last ? root.filteredItems.length - 1 : 0)
+  }
+
+  function loadMore() {
+    if (!root.hasMore || root.loading || root.conn !== "online") return
+    var generation = root.queryGeneration
+    var offset = root.items.length
+    root.loading = true
+    root.rpc("query", QueryState.options(root.searchQuery, root.activeCategory, offset), function(res, err) {
+      if (!QueryState.canAppend(generation, root.queryGeneration, offset, root.items.length)) return
+      root.loading = false
+      if (err || !res) { root.notify("Could not load more clips", false); return }
+      root.hasMore = res.has_more === true
+      root.items = root.items.concat(res.items || [])
+      root.applyFilter()
+    })
   }
 
   function isSelected(id) {
@@ -737,6 +764,7 @@ Item {
       return
     }
     if (event.key === Qt.Key_PageDown) {
+      if (root.selectedIndex >= root.filteredItems.length - 6) root.loadMore()
       root.moveSelection(6)
       event.accepted = true
       return
@@ -952,11 +980,15 @@ Item {
           root.refresh()
         } else if (root.conn === "online") {
           root.conn = "offline"
+          root.itemCache = ({})
+          root.queryGeneration++
         }
       }
 
       onError: function (error) {
         root.conn = "offline"
+        root.itemCache = ({})
+        root.queryGeneration++
       }
 
       parser: SplitParser {
