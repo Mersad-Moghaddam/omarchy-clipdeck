@@ -85,7 +85,7 @@ the two captures above.
 
 ### 1. Install or update the daemon (`clipdeckd`) on any Linux distribution
 
-Use daemon **v0.4.0 or newer**. Download distribution packages from
+Use daemon **v0.4.1 or newer**. Download distribution packages from
 [GitHub releases](https://github.com/Mersad-Moghaddam/clipdeck/releases).
 Use the versioned URLs below so the package name and release cannot drift apart.
 Verify each downloaded package against the release's `SHA256SUMS` asset before
@@ -93,25 +93,25 @@ installing; stop if either the checksum download or verification fails.
 
 ```bash
 # Debian / Ubuntu
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.0/clipdeck_0.4.0_amd64.deb &&
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.0/SHA256SUMS &&
-grep -E '  (\./)?clipdeck_0\.4\.0_amd64\.deb$' SHA256SUMS > package.sha256 &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.1/clipdeck_0.4.1_amd64.deb &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.1/SHA256SUMS &&
+grep -E '  (\./)?clipdeck_0\.4\.1_amd64\.deb$' SHA256SUMS > package.sha256 &&
 test -s package.sha256 && sha256sum -c package.sha256 &&
-sudo apt install ./clipdeck_0.4.0_amd64.deb
+sudo apt install ./clipdeck_0.4.1_amd64.deb
 
 # Fedora / RHEL
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.0/clipdeck-0.4.0-1.x86_64.rpm &&
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.0/SHA256SUMS &&
-grep -E '  (\./)?clipdeck-0\.4\.0-1\.x86_64\.rpm$' SHA256SUMS > package.sha256 &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.1/clipdeck-0.4.1-1.x86_64.rpm &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.1/SHA256SUMS &&
+grep -E '  (\./)?clipdeck-0\.4\.1-1\.x86_64\.rpm$' SHA256SUMS > package.sha256 &&
 test -s package.sha256 && sha256sum -c package.sha256 &&
-sudo dnf install ./clipdeck-0.4.0-1.x86_64.rpm
+sudo dnf install ./clipdeck-0.4.1-1.x86_64.rpm
 
 # Alpine Linux
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.0/clipdeck_0.4.0_x86_64.apk &&
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.0/SHA256SUMS &&
-grep -E '  (\./)?clipdeck_0\.4\.0_x86_64\.apk$' SHA256SUMS > package.sha256 &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.1/clipdeck_0.4.1_x86_64.apk &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.1/SHA256SUMS &&
+grep -E '  (\./)?clipdeck_0\.4\.1_x86_64\.apk$' SHA256SUMS > package.sha256 &&
 test -s package.sha256 && sha256sum -c package.sha256 &&
-sudo apk add --allow-untrusted ./clipdeck_0.4.0_x86_64.apk
+sudo apk add --allow-untrusted ./clipdeck_0.4.1_x86_64.apk
 ```
 
 Then enable and start the user service:
@@ -143,6 +143,12 @@ bind = SUPER, V, exec, omarchy-shell shell toggle io.github.mersadmoghaddam.clip
 ---
 
 ## Changelog
+### 0.4.1
+* Zero-latency selection: Eliminated multi-pass regex theme transformations with ordered memoization in `DeckTheme.js`.
+* Reactive inspector properties: Replaced imperative function re-evaluations with cached QML properties (`hasRichPreview`, `currentRichPreview`, `isPreviewRTL`), reducing large-clip selection latency from 1,068 ms to <70 ms (>93% speedup).
+* Layout freeze guards: Capped rich code previews to 90 lines in the inspector and plain text viewports to 32 KB, preventing UI layout locks while preserving 100% untruncated content for copy/paste.
+* Theme token correctness: Corrected row hover action background token from undefined `cardBg` to `bg`.
+
 ### 0.4.0
 * Generation-guarded queries: Monotonic request tokens reject stale async query replies, eliminating list flickering during fast search typing.
 * Pre-paged category filtering: Evaluates category filters and search queries server-side before pagination offsets, ensuring smooth scrolling and stable page boundaries.
