@@ -69,9 +69,33 @@ Item {
   property string transformPreview: ""
   property string transformPreviewError: ""
 
-  readonly property var activeItem: selectedIndex >= 0 && selectedIndex < filteredItems.length ? filteredItems[selectedIndex] : null
+  property var itemCache: ({})
+  readonly property var rawActiveItem: selectedIndex >= 0 && selectedIndex < filteredItems.length ? filteredItems[selectedIndex] : null
+  readonly property var activeItem: (rawActiveItem && itemCache[rawActiveItem.id]) ? itemCache[rawActiveItem.id] : rawActiveItem
   readonly property bool hasSelection: selectedIds.length > 0
   readonly property int searchLen: searchQuery.length
+
+  onActiveItemChanged: {
+    codeScroll.contentY = 0
+    codeScroll.contentX = 0
+    plainScroll.contentY = 0
+  }
+
+  onRawActiveItemChanged: {
+    var it = root.rawActiveItem
+    if (!it || !it.id) return
+    if (root.itemCache[it.id]) return
+    // If content might be trimmed or rich preview not yet loaded in list stream
+    if (it.content.length >= 16000 || ((it.type === "code" || it.type === "json") && !it.rich_preview)) {
+      root.rpc("get", { id: it.id }, function (res, err) {
+        if (!err && res && res.item) {
+          var updated = Object.assign({}, root.itemCache)
+          updated[res.item.id] = res.item
+          root.itemCache = updated
+        }
+      })
+    }
+  }
 
   // ---- Theme tokens --------------------------------------------------------
   readonly property color bg: Color.menu.background
@@ -454,6 +478,7 @@ Item {
       root.askConfirm("delete-selection")
       return
     }
+    if (root.itemCache[item.id]) delete root.itemCache[item.id]
     root.rpc("delete", { id: item.id }, function (res, err) {
       if (err) {
         root.notify("Delete failed: " + err, false)
@@ -1157,6 +1182,7 @@ Item {
                   color: root.fg
                   elide: Text.ElideRight
                   textFormat: Text.PlainText
+                  horizontalAlignment: DeckTheme.isRTL(text) ? Text.AlignRight : Text.AlignLeft
                 }
 
                 Text {
@@ -1172,7 +1198,9 @@ Item {
                 Rectangle {
                   id: caret
                   visible: root.searchQuery !== ""
-                  x: Math.min(parent.width - width, searchText.implicitWidth + Style.space(2))
+                  x: DeckTheme.isRTL(root.searchQuery)
+                    ? parent.width - Math.min(parent.width - width, searchText.implicitWidth + Style.space(4))
+                    : Math.min(parent.width - width, searchText.implicitWidth + Style.space(2))
                   anchors.verticalCenter: parent.verticalCenter
                   width: Math.max(1, Style.space(1))
                   height: Math.max(10, Style.font.body + 4)
@@ -1285,14 +1313,26 @@ Item {
                 textFormat: Text.PlainText
               }
 
-              Text {
+              Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
-                text: "Merge"
-                font.family: root.fontFam
-                font.pixelSize: Style.font.caption
-                font.bold: true
-                color: batchMerge.containsMouse ? root.fg : Util.alpha(root.fg, 0.6)
-                textFormat: Text.PlainText
+                width: mergeLabel.implicitWidth + Style.space(16)
+                height: Style.space(24)
+                radius: Style.space(5)
+                color: batchMerge.containsMouse ? Util.alpha(root.fg, 0.14) : Util.alpha(root.fg, 0.07)
+                border.color: root.hairlineSoft
+                border.width: 1
+                Behavior on color { ColorAnimation { duration: 80 } }
+
+                Text {
+                  id: mergeLabel
+                  anchors.centerIn: parent
+                  text: "Merge"
+                  font.family: root.fontFam
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                  color: root.fg
+                  textFormat: Text.PlainText
+                }
 
                 MouseArea {
                   id: batchMerge
@@ -1303,14 +1343,26 @@ Item {
                 }
               }
 
-              Text {
+              Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
-                text: "Delete"
-                font.family: root.fontFam
-                font.pixelSize: Style.font.caption
-                font.bold: true
-                color: batchDelete.containsMouse ? root.urgent : Util.alpha(root.fg, 0.6)
-                textFormat: Text.PlainText
+                width: deleteLabel.implicitWidth + Style.space(16)
+                height: Style.space(24)
+                radius: Style.space(5)
+                color: batchDelete.containsMouse ? Util.alpha(root.urgent, 0.22) : Util.alpha(root.urgent, 0.09)
+                border.color: root.hairlineSoft
+                border.width: 1
+                Behavior on color { ColorAnimation { duration: 80 } }
+
+                Text {
+                  id: deleteLabel
+                  anchors.centerIn: parent
+                  text: "Delete"
+                  font.family: root.fontFam
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                  color: root.urgent
+                  textFormat: Text.PlainText
+                }
 
                 MouseArea {
                   id: batchDelete
@@ -1382,6 +1434,7 @@ Item {
                 readonly property bool hasThumb: row.isImage && (row.modelData.thumbnail_path || row.modelData.blob_path)
                 readonly property bool sensitiveLocked: row.modelData.sensitive === true && !root.isRevealed(row.modelData.id)
                 readonly property var colorInfo: row.isColor ? DeckTheme.parseColorValue(row.modelData.content) : null
+                property string hoveredAction: ""
 
                 width: itemsList.width
                 height: Style.space(50)
@@ -1405,47 +1458,81 @@ Item {
                   color: row.current || row.chosen ? root.accent : "transparent"
                 }
 
-                // Row-wide click catcher. Declared BEFORE the content row so
-                // nested action MouseAreas below win clicks inside their own
-                // bounds while everything else still lands here.
+                // Row-wide click and hover dispatcher. Single MouseArea for the entire
+                // row eliminates hover oscillation, jitter, and layout thrashing.
                 MouseArea {
                   id: rowMouse
                   anchors.fill: parent
                   hoverEnabled: true
                   acceptedButtons: Qt.LeftButton
-                  onClicked: function (mouse) {
-                    // Clicking the checkbox — or Ctrl-clicking anywhere —
-                    // toggles multi-select; anything else moves the cursor.
-                    // The old check compared raw mouse.x against checkBox.x
-                    // (coordinates in different spaces) and was off by the
-                    // thumb width; map the point instead.
-                    var onCheckbox = false
+                  cursorShape: row.hoveredAction !== "" ? Qt.PointingHandCursor : Qt.ArrowCursor
+
+                  function updateHoveredAction(mx, my) {
                     if (checkBox.visible) {
-                      var at = checkBox.mapToItem(rowMouse, 0, 0)
-                      onCheckbox = mouse.x >= at.x - Style.space(6)
-                        && mouse.x <= at.x + checkBox.width + Style.space(6)
-                        && mouse.y >= at.y - Style.space(6)
-                        && mouse.y <= at.y + checkBox.height + Style.space(6)
+                      var cb = checkBox.mapToItem(rowMouse, 0, 0)
+                      if (mx >= cb.x - 4 && mx <= cb.x + checkBox.width + 4 &&
+                          my >= cb.y - 4 && my <= cb.y + checkBox.height + 4) {
+                        row.hoveredAction = "checkbox"
+                        return
+                      }
                     }
-                    if (onCheckbox || (mouse.modifiers & Qt.ControlModifier) !== 0) {
+                    if (actionsBox.visible) {
+                      var ab = actionsBox.mapToItem(rowMouse, 0, 0)
+                      if (mx >= ab.x && mx <= ab.x + actionsBox.width &&
+                          my >= ab.y && my <= ab.y + actionsBox.height) {
+                        var relX = mx - ab.x
+                        var cpEnd = btnCopy.x + btnCopy.width
+                        var pinEnd = btnPin.x + btnPin.width
+                        if (relX <= cpEnd) {
+                          row.hoveredAction = "copy"
+                        } else if (relX <= pinEnd) {
+                          row.hoveredAction = "pin"
+                        } else {
+                          row.hoveredAction = "delete"
+                        }
+                        return
+                      }
+                    }
+                    row.hoveredAction = ""
+                  }
+
+                  onPositionChanged: function (mouse) {
+                    updateHoveredAction(mouse.x, mouse.y)
+                  }
+
+                  onExited: {
+                    row.hoveredAction = ""
+                  }
+
+                  onClicked: function (mouse) {
+                    if (row.hoveredAction === "checkbox" || (mouse.modifiers & Qt.ControlModifier) !== 0) {
                       root.toggleSelected(row.modelData.id)
+                    } else if (row.hoveredAction === "copy") {
+                      root.copyItem(row.modelData, {})
+                    } else if (row.hoveredAction === "pin") {
+                      root.pinItem(row.modelData)
+                    } else if (row.hoveredAction === "delete") {
+                      root.deleteItem(row.modelData)
                     } else {
                       root.setSelection(row.index)
                     }
                   }
-                  onDoubleClicked: {
-                    root.pasteItem(row.modelData, {})
+
+                  onDoubleClicked: function (mouse) {
+                    if (row.hoveredAction === "") {
+                      root.pasteItem(row.modelData, {})
+                    }
                   }
                 }
 
                 RowLayout {
                   anchors.fill: parent
                   anchors.leftMargin: Style.space(10)
-                  anchors.rightMargin: Style.space(8)
+                  anchors.rightMargin: (row.hot || row.hoveredAction !== "") ? actionsBox.width + Style.space(12) : Style.space(8)
                   spacing: Style.space(9)
 
                   // Selection checkbox — passive indicator; hit-testing is
-                  // done by the row's single MouseArea below (no nested areas).
+                  // done by the row's single MouseArea above (no nested areas).
                   Rectangle {
                     id: checkBox
                     Layout.alignment: Qt.AlignVCenter
@@ -1564,71 +1651,101 @@ Item {
                     }
                   }
 
-                  // Quick-paste digit for the first nine rows — bare text.
+                  // Quick-paste digit for the first nine rows.
                   Text {
                     Layout.alignment: Qt.AlignVCenter
-                    visible: row.index < 9 && (row.hot || row.current)
+                    visible: row.index < 9 && !row.hot && row.current
                     text: row.index + 1
                     font.family: root.fontFam
                     font.pixelSize: Style.font.caption
                     color: Util.alpha(root.fg, 0.4)
                   }
+                }
 
-                  // Hover quick-actions: mouse users act on a clip without
-                  // scrolling to the inspector. Token-only colors; click
-                  // precedence comes from declaration order after rowMouse.
-                  Text {
-                    Layout.alignment: Qt.AlignVCenter
-                    visible: row.hot
-                    text: "Copy"
-                    font.family: root.fontFam
-                    font.pixelSize: Style.font.caption
-                    color: quickCopy.containsMouse ? root.fg : Util.alpha(root.fg, 0.55)
-                    leftPadding: Style.space(3)
+                // Hover quick-actions container — single-area hit-testing, zero nested MouseAreas.
+                Item {
+                  id: actionsBox
+                  anchors.right: parent.right
+                  anchors.rightMargin: Style.space(8)
+                  anchors.verticalCenter: parent.verticalCenter
+                  height: Style.space(26)
+                  width: actionsRow.width
+                  visible: opacity > 0.0
+                  opacity: (row.hot || row.hoveredAction !== "") ? 1.0 : 0.0
+                  Behavior on opacity { NumberAnimation { duration: 90 } }
+                  z: 5
 
-                    MouseArea {
-                      id: quickCopy
-                      anchors.fill: parent
-                      hoverEnabled: true
-                      cursorShape: Qt.PointingHandCursor
-                      onClicked: root.copyItem(row.modelData, {})
-                    }
+                  Rectangle {
+                    anchors.fill: parent
+                    radius: Style.space(6)
+                    color: Util.alpha(root.cardBg, 0.95)
+                    border.color: root.hairlineSoft
+                    border.width: 1
                   }
 
-                  Text {
-                    Layout.alignment: Qt.AlignVCenter
-                    visible: row.hot
-                    text: row.modelData.pinned === true ? "Unpin" : "Pin"
-                    font.family: root.fontFam
-                    font.pixelSize: Style.font.caption
-                    color: quickPin.containsMouse ? root.fg : Util.alpha(root.fg, 0.55)
-                    leftPadding: Style.space(3)
+                  Row {
+                    id: actionsRow
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Style.space(2)
+                    padding: Style.space(2)
 
-                    MouseArea {
-                      id: quickPin
-                      anchors.fill: parent
-                      hoverEnabled: true
-                      cursorShape: Qt.PointingHandCursor
-                      onClicked: root.pinItem(row.modelData)
+                    // Copy
+                    Rectangle {
+                      id: btnCopy
+                      width: copyText.implicitWidth + Style.space(12)
+                      height: Style.space(22)
+                      radius: Style.space(4)
+                      color: row.hoveredAction === "copy" ? Util.alpha(root.fg, 0.12) : "transparent"
+                      Behavior on color { ColorAnimation { duration: 70 } }
+
+                      Text {
+                        id: copyText
+                        anchors.centerIn: parent
+                        text: "Copy"
+                        font.family: root.fontFam
+                        font.pixelSize: Style.font.caption
+                        color: row.hoveredAction === "copy" ? root.fg : Util.alpha(root.fg, 0.65)
+                      }
                     }
-                  }
 
-                  Text {
-                    Layout.alignment: Qt.AlignVCenter
-                    visible: row.hot
-                    text: "✕"
-                    font.family: root.fontFam
-                    font.pixelSize: Style.font.caption
-                    font.bold: true
-                    color: quickDelete.containsMouse ? root.urgent : Util.alpha(root.fg, 0.55)
-                    leftPadding: Style.space(3)
+                    // Pin
+                    Rectangle {
+                      id: btnPin
+                      width: pinText.implicitWidth + Style.space(12)
+                      height: Style.space(22)
+                      radius: Style.space(4)
+                      color: row.hoveredAction === "pin" ? Util.alpha(root.accent, 0.18) : "transparent"
+                      Behavior on color { ColorAnimation { duration: 70 } }
 
-                    MouseArea {
-                      id: quickDelete
-                      anchors.fill: parent
-                      hoverEnabled: true
-                      cursorShape: Qt.PointingHandCursor
-                      onClicked: root.deleteItem(row.modelData)
+                      Text {
+                        id: pinText
+                        anchors.centerIn: parent
+                        text: row.modelData.pinned === true ? "Unpin" : "Pin"
+                        font.family: root.fontFam
+                        font.pixelSize: Style.font.caption
+                        color: row.hoveredAction === "pin"
+                          ? root.accent
+                          : (row.modelData.pinned === true ? root.accent : Util.alpha(root.fg, 0.65))
+                      }
+                    }
+
+                    // Delete
+                    Rectangle {
+                      id: btnDelete
+                      width: Style.space(22)
+                      height: Style.space(22)
+                      radius: Style.space(4)
+                      color: row.hoveredAction === "delete" ? Util.alpha(root.urgent, 0.2) : "transparent"
+                      Behavior on color { ColorAnimation { duration: 70 } }
+
+                      Text {
+                        anchors.centerIn: parent
+                        text: "✕"
+                        font.family: root.fontFam
+                        font.pixelSize: Style.font.caption
+                        font.bold: true
+                        color: row.hoveredAction === "delete" ? root.urgent : Util.alpha(root.fg, 0.65)
+                      }
                     }
                   }
                 }
@@ -2092,18 +2209,21 @@ Item {
                   anchors.fill: parent
                   anchors.margins: Style.space(10)
                   visible: root.isRichPreviewVisible()
-                  contentWidth: Math.max(width, codeText.paintedWidth)
+                  contentWidth: DeckTheme.isRTL(codeText.text) ? width : Math.max(width, codeText.paintedWidth)
                   contentHeight: Math.max(height, codeText.paintedHeight)
                   clip: true
                   boundsBehavior: Flickable.StopAtBounds
 
                   Text {
                     id: codeText
+                    width: DeckTheme.isRTL(text) ? codeScroll.width : undefined
                     text: root.currentPreview()
                     textFormat: Text.RichText
-                    font.family: root.codeFam
+                    font.family: DeckTheme.isRTL(text) ? root.fontFam : root.codeFam
                     font.pixelSize: Style.font.body
-                    wrapMode: Text.NoWrap
+                    lineHeight: DeckTheme.isRTL(text) ? 1.45 : 1.2
+                    wrapMode: DeckTheme.isRTL(text) ? Text.WrapAtWordBoundaryOrAnywhere : Text.NoWrap
+                    horizontalAlignment: DeckTheme.isRTL(text) ? Text.AlignRight : Text.AlignLeft
                     color: root.fg
                   }
                 }
@@ -2127,7 +2247,7 @@ Item {
                     id: plainText
                     width: plainScroll.width
                     text: root.plainContent(root.activeItem)
-                    font.family: DeckTheme.isRTL(text) ? root.codeFam : root.fontFam
+                    font.family: root.fontFam
                     font.pixelSize: Style.font.body
                     lineHeight: DeckTheme.isRTL(text) ? 1.5 : 1.25
                     color: root.fg

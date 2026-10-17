@@ -87,19 +87,20 @@ the two captures above.
 ClipDeck pairs with the CGO-free Go daemon; every release ships `.deb`,
 `.rpm`, `.apk` and a portable tarball for `amd64` and `arm64`
 ([releases](https://github.com/Mersad-Moghaddam/clipdeck/releases)).
-**Use daemon v0.3.0 or newer** — v0.2.1 is the minimum (v0.2.0 shipped a
-broken clipboard watcher that never stored captured items); v0.3.0 adds
+**Use daemon v0.3.1 or newer** — v0.2.1 is the minimum (v0.2.0 shipped a
+broken clipboard watcher that never stored captured items); v0.3.1 adds
 coalesced code markup, bounded IPC writes, refcounted blob/thumb GC and a 2-rune search fallback:
 
 ```bash
 # Debian / Ubuntu
-sudo apt install ./clipdeck_0.3.0_amd64.deb
+sudo apt install ./clipdeck_0.3.1_amd64.deb
 
 # Fedora / RHEL / openSUSE
-sudo dnf install ./clipdeck-0.3.0-1.x86_64.rpm
+sudo dnf install ./clipdeck-0.3.1-1.x86_64.rpm
 
 # Alpine
-sudo apk add --allow-untrusted ./clipdeck_0.3.0_x86_64.apk
+sudo apk add --allow-untrusted ./clipdeck_0.3.1_x86_64.apk
+```
 
 # Arch (AUR)
 yay -S clipdeck
@@ -137,6 +138,12 @@ bind = SUPER, V, exec, omarchy-shell shell toggle io.github.mersadmoghaddam.clip
 ---
 
 ## Changelog
+### 0.3.1
+* Zero-lag hover quick actions: Single-area hit-tested action pill eliminates mouse jitter and layout thrashing.
+* Full Persian & markdown preview: Dynamic `get` fetch for large/slimmed clips delivers 100% untruncated content in the inspector.
+* RTL font & search polish: Restored system UI font for Persian text; right-aligned Persian search input with synchronized caret blinking.
+* Micro-pill batch actions: Replaced bare text with tactile micro-pill buttons for multi-select Merge and Delete.
+
 ### 0.3.0
 * Keyboard cursor re-anchors to the same clip across live reorders — Enter
   always pastes the row you are looking at, even when a capture lands
