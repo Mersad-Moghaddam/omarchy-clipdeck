@@ -118,7 +118,8 @@ function classColor(cls, pal) {
       || name.indexOf("literalstring") === 0
       || name.indexOf("string") === 0) return pal.string
   if (name.indexOf("number") === 0
-      || name.indexOf("literalnumber") === 0) return pal.number
+      || name.indexOf("literalnumber") === 0
+      || name.indexOf("json-number") === 0) return pal.number
   if (name.indexOf("json-literal") === 0 || name.indexOf("literal") === 0) return pal.keyword
   if (name.indexOf("operator") === 0
       || name.indexOf("punctuation") === 0
@@ -269,10 +270,25 @@ function timeAgo(value, nowMs) {
   if (sec < 45) return "now"
   if (sec < 3600) return Math.round(sec / 60) + "m"
   if (sec < 86400) return Math.round(sec / 3600) + "h"
+  if (sec < 86400 * 2) return "yesterday"
   if (sec < 86400 * 7) return Math.round(sec / 86400) + "d"
   var d = new Date(t)
   var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
   return months[d.getMonth()] + " " + d.getDate()
+}
+
+// stamp() renders an exact local timestamp for the inspector, where "2d"
+// alone is not enough: "Wed 15 Oct, 15:41".
+function stamp(value) {
+  if (!value) return ""
+  var t = typeof value === "number" ? value : Date.parse(value)
+  if (!isFinite(t)) return ""
+  var d = new Date(t)
+  var days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+  var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+  var hh = String(d.getHours()).padStart(2, "0")
+  var mm = String(d.getMinutes()).padStart(2, "0")
+  return days[d.getDay()] + " " + d.getDate() + " " + months[d.getMonth()] + ", " + hh + ":" + mm
 }
 
 // untilLabel() describes a future TTL: "12s", "4m", "expired".
@@ -347,11 +363,17 @@ function typeName(type) {
   }
 }
 
-// clip() shortens text for chips and previews without breaking surrogate
-// pairs mid-character.
+// clip() shortens text for chips and previews. Length is measured in UTF-16
+// units, so the cut must never split a surrogate pair (emoji, rare CJK).
 function clip(s, max) {
   var t = String(s === undefined || s === null ? "" : s)
   var m = Math.max(1, max || 40)
   if (t.length <= m) return t
-  return t.substring(0, m - 1) + "…"
+  var cut = t.substring(0, m - 1)
+  var last = cut.charCodeAt(cut.length - 1)
+  var next = t.charCodeAt(cut.length)
+  if (last >= 0xD800 && last <= 0xDBFF && next >= 0xDC00 && next <= 0xDFFF) {
+    cut = cut.substring(0, cut.length - 1)
+  }
+  return cut + "…"
 }

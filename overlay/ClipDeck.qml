@@ -42,6 +42,10 @@ Item {
   property var items: []
   property var filteredItems: []
   property int selectedIndex: 0
+  // Selection anchor: the clip the cursor sits on. Live reorders (a capture
+  // arriving mid-session) re-resolve the cursor to this id instead of drifting
+  // positionally onto a different row.
+  property string selectedId: ""
   property string activeCategory: "all"
   property string searchQuery: ""
   property bool loading: false
@@ -140,7 +144,13 @@ Item {
   readonly property var transformCurrent: transformIndex >= 0 && transformIndex < filteredTransforms.length ? filteredTransforms[transformIndex] : null
 
   // ---- Socket path ----------------------------------------------------------
-  readonly property string runtimeDir: Quickshell.env("XDG_RUNTIME_DIR")
+  // Mirrors the daemon's dir choice: $XDG_RUNTIME_DIR when set, else
+  // /tmp/run-clipdeck (see clipdeckd). An "undefined/…" path would never
+  // connect and the deck would sit offline with a retry loop.
+  readonly property string runtimeDir: {
+    var d = Quickshell.env("XDG_RUNTIME_DIR")
+    return d !== "" ? d : "/tmp/run-clipdeck"
+  }
   readonly property string socketPath: root.runtimeDir + "/" + (root.profile === "dev" ? "clipdeck-dev" : "clipdeck") + "/clipdeck.sock"
 
   // ---- RPC plumbing ---------------------------------------------------------
@@ -248,8 +258,20 @@ Item {
       if (root.matches(root.items[i])) out.push(root.items[i])
     }
     root.filteredItems = out
+    // Re-anchor the cursor to the same clip after any reorder; only fall
+    // back to the positional index when the anchor vanished (deleted, or
+    // filtered out). Enter must always paste the clip the user is looking at.
+    if (root.selectedId !== "") {
+      for (var j = 0; j < out.length; j++) {
+        if (out[j].id === root.selectedId) {
+          root.selectedIndex = j
+          return
+        }
+      }
+    }
     if (root.selectedIndex >= out.length) root.selectedIndex = Math.max(0, out.length - 1)
     if (root.selectedIndex < 0) root.selectedIndex = 0
+    root.selectedId = out.length > 0 ? out[root.selectedIndex].id : ""
   }
 
   function matchesFor(item, cat) {
@@ -265,6 +287,14 @@ Item {
     return root.matchesFor(item, root.activeCategory)
   }
 
+  // categoryLabelOf renders "No pinned clips yet" style copy for a category.
+  function categoryLabelOf(catId) {
+    for (var i = 0; i < root.categories.length; i++) {
+      if (root.categories[i].id === catId) return String(root.categories[i].label).toLowerCase()
+    }
+    return "clips in this category"
+  }
+
   function countFor(catId) {
     var n = 0
     for (var i = 0; i < root.items.length; i++) {
@@ -276,20 +306,27 @@ Item {
   function selectCategory(catId) {
     root.activeCategory = catId
     root.selectedIndex = 0
+    root.selectedId = "" // re-anchor to the new category's first row
     root.applyFilter()
+  }
+
+  // setSelection moves the cursor AND re-anchors it to that clip.
+  function setSelection(index) {
+    if (index < 0 || index >= root.filteredItems.length) return
+    root.selectedIndex = index
+    root.selectedId = root.filteredItems[index].id
+    itemsList.positionViewAtIndex(index, ListView.Contain)
   }
 
   function moveSelection(delta) {
     if (root.filteredItems.length === 0) return
     var n = root.filteredItems.length
-    root.selectedIndex = ((root.selectedIndex + delta) % n + n) % n
-    itemsList.positionViewAtIndex(root.selectedIndex, ListView.Contain)
+    root.setSelection(((root.selectedIndex + delta) % n + n) % n)
   }
 
   function selectEdge(last) {
     if (root.filteredItems.length === 0) return
-    root.selectedIndex = last ? root.filteredItems.length - 1 : 0
-    itemsList.positionViewAtIndex(root.selectedIndex, ListView.Contain)
+    root.setSelection(last ? root.filteredItems.length - 1 : 0)
   }
 
   function isSelected(id) {
@@ -398,8 +435,17 @@ Item {
     var willPin = item.pinned !== true
     item.pinned = willPin
     root.items = root.items.slice()
+    root.applyFilter()
     root.notify(willPin ? "Pinned — it survives clearing" : "Unpinned", true)
-    root.rpc("pin", { id: item.id, pinned: willPin }, function () { root.refresh() })
+    root.rpc("pin", { id: item.id, pinned: willPin }, function (res, err) {
+      if (err) {
+        // Roll the optimistic flip back so the row tells the truth.
+        item.pinned = !willPin
+        root.applyFilter()
+        root.notify("Pin failed: " + err, false)
+      }
+      root.refresh()
+    })
   }
 
   function deleteItem(item) {
@@ -409,8 +455,18 @@ Item {
       return
     }
     root.rpc("delete", { id: item.id }, function (res, err) {
-      if (err) root.notify("Delete failed: " + err, false)
-      else root.notify("Clip deleted", true)
+      if (err) {
+        root.notify("Delete failed: " + err, false)
+      } else {
+        // A deleted clip must not linger as a ghost checkbox selection.
+        var at = root.selectedIds.indexOf(item.id)
+        if (at !== -1) {
+          var next = root.selectedIds.slice()
+          next.splice(at, 1)
+          root.selectedIds = next
+        }
+        root.notify("Clip deleted", true)
+      }
       root.refresh()
     })
   }
@@ -425,6 +481,8 @@ Item {
       root.confirmMessage = "Are you sure?"
     }
     root.confirmOpen = true
+    // Preselect Cancel: muscle-memory Enter must never confirm a wipe.
+    if (confirmDialog.selectedIndex !== undefined) confirmDialog.selectedIndex = 0
   }
 
   function runConfirmed() {
@@ -443,11 +501,17 @@ Item {
       var count = ids.length
       root.selectedIds = []
       var remaining = count
+      var failed = 0
       for (var i = 0; i < ids.length; i++) {
-        root.rpc("delete", { id: ids[i] }, function () {
+        root.rpc("delete", { id: ids[i] }, function (res, err) {
           remaining--
+          if (err) failed++
           if (remaining <= 0) {
-            root.notify(count + " clips deleted", true)
+            if (failed > 0) {
+              root.notify((count - failed) + " deleted, " + failed + " failed", false)
+            } else {
+              root.notify(count + " clips deleted", true)
+            }
             root.refresh()
           }
         })
@@ -460,13 +524,17 @@ Item {
     var ids = root.selectedIds.slice()
     var count = ids.length
     root.selectedIds = []
+    if (thenPaste) {
+      // Parity with pasteItem: hide the deck BEFORE the paste dispatch so
+      // focus lands in the target window, not under the overlay.
+      root.close()
+    }
     root.rpc("merge", { ids: ids, separator: separator, action: thenPaste ? "paste" : "copy" }, function (res, err) {
       if (err) {
         root.notify("Merge failed: " + err, false)
         return
       }
-      if (thenPaste) root.close()
-      else root.notify(count + " clips merged into one", true)
+      if (!thenPaste) root.notify(count + " clips merged into one", true)
     })
   }
 
@@ -479,6 +547,14 @@ Item {
       root.isPaused = res.paused === true
       root.notify(root.isPaused ? "Capture paused — incognito" : "Capture resumed", true)
     })
+  }
+
+  // asOpenTarget passes already-schemed targets through untouched (imported
+  // cliphist rows can carry raw file:// URIs); bare paths become file URLs.
+  function asOpenTarget(p) {
+    var s = String(p)
+    if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(s)) return s
+    return Util.fileUrl(s)
   }
 
   function openExternal(item) {
@@ -494,12 +570,12 @@ Item {
       var paths = String(item.content || "").split("\n")
       for (var i = 0; i < paths.length; i++) {
         var p = paths[i].trim()
-        if (p !== "") args.push(Util.fileUrl(p))
+        if (p !== "") args.push(asOpenTarget(p))
       }
       if (args.length === 1) return
     } else if (item.type === "path") {
       if (!item.content) return
-      args.push(Util.fileUrl(item.content.trim()))
+      args.push(asOpenTarget(item.content.trim()))
     } else if (item.type === "email") {
       if (!item.content) return
       args.push("mailto:" + item.content.trim())
@@ -535,7 +611,17 @@ Item {
   function applyTransform(thenPaste) {
     var t = root.transformCurrent
     var item = root.activeItem
-    if (!t || !item) return
+    if (!item) return
+    if (!t) {
+      // Dead-end keys say so; the dialog stays open for editing the filter.
+      root.notify("No transform matches the filter", false)
+      return
+    }
+    if (item.sensitive === true && !root.isRevealed(item.id)) {
+      // No silent transformation of secrets: reveal first (Ctrl+R).
+      root.notify("Reveal the clip first (Ctrl+R) to transform it", false)
+      return
+    }
     root.transformOpen = false
     if (thenPaste) root.pasteItem(item, { plain: true, transform: t.id })
     else root.copyItem(item, { plain: true, transform: t.id, label: t.name + " copied to clipboard" })
@@ -758,7 +844,13 @@ Item {
         if (now - root.pending[id].at > root.rpcTimeoutMs) stale.push(id)
       }
       if (stale.length > 0) {
-        for (var i = 0; i < stale.length; i++) delete root.pending[stale[i]]
+        for (var i = 0; i < stale.length; i++) {
+          var entry = root.pending[stale[i]]
+          delete root.pending[stale[i]]
+          // Callers waiting on these callbacks (batch-delete counters,
+          // pin toasts) must hear the timeout or they hang forever.
+          if (entry && entry.cb) entry.cb(null, "timeout: daemon did not answer")
+        }
         if (root.conn === "online") root.notify("Daemon did not answer — run clipdeck doctor to diagnose", false)
       }
     }
@@ -781,6 +873,14 @@ Item {
       var item = root.activeItem
       if (!t || !item) {
         root.transformPreview = ""
+        return
+      }
+      // H1 guard: an unrevealed secret must never be rendered through the
+      // transform preview, which shows FULL content server-side.
+      if (item.sensitive === true && !root.isRevealed(item.id)) {
+        root.transformPreviewError = ""
+        root.transformPreview = item.masked_content && item.masked_content !== ""
+          ? item.masked_content : "••••••••••••"
         return
       }
       root.rpc("transform", { id: item.id, action: t.id }, function (res, err) {
@@ -869,8 +969,11 @@ Item {
     if (event === "pin_changed") {
       if (data && data.id) {
         var item = root.itemById(data.id)
+        var wasSelected = item !== null && root.selectedId === item.id
         if (item) item.pinned = data.pinned === true
         root.items = root.items.slice()
+        root.applyFilter() // pinned category membership must repaint too
+        if (wasSelected && item) itemsList.positionViewAtIndex(root.selectedIndex, ListView.Contain)
       }
       return
     }
@@ -1165,6 +1268,60 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             spacing: Style.space(10)
 
+            // Batch-action strip: mouse parity for multi-select. Appears
+            // only while 2+ rows are checkbox-selected.
+            Row {
+              anchors.verticalCenter: parent.verticalCenter
+              visible: root.selectedIds.length > 1
+              spacing: Style.space(10)
+
+              Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: root.selectedIds.length + " selected"
+                font.family: root.fontFam
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                color: root.accent
+                textFormat: Text.PlainText
+              }
+
+              Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "Merge"
+                font.family: root.fontFam
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                color: batchMerge.containsMouse ? root.fg : Util.alpha(root.fg, 0.6)
+                textFormat: Text.PlainText
+
+                MouseArea {
+                  id: batchMerge
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  cursorShape: Qt.PointingHandCursor
+                  onClicked: root.mergeSelection("\n", false)
+                }
+              }
+
+              Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "Delete"
+                font.family: root.fontFam
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                color: batchDelete.containsMouse ? root.urgent : Util.alpha(root.fg, 0.6)
+                textFormat: Text.PlainText
+
+                MouseArea {
+                  id: batchDelete
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  cursorShape: Qt.PointingHandCursor
+                  onClicked: root.askConfirm("delete-selection")
+                }
+              }
+            }
+
             Text {
               anchors.verticalCenter: parent.verticalCenter
               visible: root.loading
@@ -1172,6 +1329,7 @@ Item {
               font.family: root.fontFam
               font.pixelSize: Style.font.caption
               color: Util.alpha(root.fg, 0.5)
+              textFormat: Text.PlainText
             }
 
             Text {
@@ -1180,6 +1338,7 @@ Item {
               font.family: root.fontFam
               font.pixelSize: Style.font.caption
               color: Util.alpha(root.fg, 0.38)
+              textFormat: Text.PlainText
             }
           }
         }
@@ -1244,6 +1403,39 @@ Item {
                   height: parent.height - Style.space(14)
                   radius: width / 2
                   color: row.current || row.chosen ? root.accent : "transparent"
+                }
+
+                // Row-wide click catcher. Declared BEFORE the content row so
+                // nested action MouseAreas below win clicks inside their own
+                // bounds while everything else still lands here.
+                MouseArea {
+                  id: rowMouse
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  acceptedButtons: Qt.LeftButton
+                  onClicked: function (mouse) {
+                    // Clicking the checkbox — or Ctrl-clicking anywhere —
+                    // toggles multi-select; anything else moves the cursor.
+                    // The old check compared raw mouse.x against checkBox.x
+                    // (coordinates in different spaces) and was off by the
+                    // thumb width; map the point instead.
+                    var onCheckbox = false
+                    if (checkBox.visible) {
+                      var at = checkBox.mapToItem(rowMouse, 0, 0)
+                      onCheckbox = mouse.x >= at.x - Style.space(6)
+                        && mouse.x <= at.x + checkBox.width + Style.space(6)
+                        && mouse.y >= at.y - Style.space(6)
+                        && mouse.y <= at.y + checkBox.height + Style.space(6)
+                    }
+                    if (onCheckbox || (mouse.modifiers & Qt.ControlModifier) !== 0) {
+                      root.toggleSelected(row.modelData.id)
+                    } else {
+                      root.setSelection(row.index)
+                    }
+                  }
+                  onDoubleClicked: {
+                    root.pasteItem(row.modelData, {})
+                  }
                 }
 
                 RowLayout {
@@ -1346,6 +1538,7 @@ Item {
                         font.pixelSize: Style.font.caption
                         color: row.current ? Util.alpha(root.selText, 0.75) : Util.alpha(root.fg, 0.5)
                         elide: Text.ElideRight
+                        textFormat: Text.PlainText
                       }
 
                       Text {
@@ -1380,25 +1573,63 @@ Item {
                     font.pixelSize: Style.font.caption
                     color: Util.alpha(root.fg, 0.4)
                   }
-                }
 
-                MouseArea {
-                  id: rowMouse
-                  anchors.fill: parent
-                  hoverEnabled: true
-                  acceptedButtons: Qt.LeftButton
-                  onClicked: function (mouse) {
-                    // Clicking the checkbox — or Ctrl-clicking anywhere —
-                    // toggles multi-select; anything else moves the cursor.
-                    var onCheckbox = checkBox.visible && mouse.x <= checkBox.x + checkBox.width + Style.space(8)
-                    if (onCheckbox || (mouse.modifiers & Qt.ControlModifier) !== 0) {
-                      root.toggleSelected(row.modelData.id)
-                    } else {
-                      root.selectedIndex = row.index
+                  // Hover quick-actions: mouse users act on a clip without
+                  // scrolling to the inspector. Token-only colors; click
+                  // precedence comes from declaration order after rowMouse.
+                  Text {
+                    Layout.alignment: Qt.AlignVCenter
+                    visible: row.hot
+                    text: "Copy"
+                    font.family: root.fontFam
+                    font.pixelSize: Style.font.caption
+                    color: quickCopy.containsMouse ? root.fg : Util.alpha(root.fg, 0.55)
+                    leftPadding: Style.space(3)
+
+                    MouseArea {
+                      id: quickCopy
+                      anchors.fill: parent
+                      hoverEnabled: true
+                      cursorShape: Qt.PointingHandCursor
+                      onClicked: root.copyItem(row.modelData, {})
                     }
                   }
-                  onDoubleClicked: {
-                    root.pasteItem(row.modelData, {})
+
+                  Text {
+                    Layout.alignment: Qt.AlignVCenter
+                    visible: row.hot
+                    text: row.modelData.pinned === true ? "Unpin" : "Pin"
+                    font.family: root.fontFam
+                    font.pixelSize: Style.font.caption
+                    color: quickPin.containsMouse ? root.fg : Util.alpha(root.fg, 0.55)
+                    leftPadding: Style.space(3)
+
+                    MouseArea {
+                      id: quickPin
+                      anchors.fill: parent
+                      hoverEnabled: true
+                      cursorShape: Qt.PointingHandCursor
+                      onClicked: root.pinItem(row.modelData)
+                    }
+                  }
+
+                  Text {
+                    Layout.alignment: Qt.AlignVCenter
+                    visible: row.hot
+                    text: "✕"
+                    font.family: root.fontFam
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
+                    color: quickDelete.containsMouse ? root.urgent : Util.alpha(root.fg, 0.55)
+                    leftPadding: Style.space(3)
+
+                    MouseArea {
+                      id: quickDelete
+                      anchors.fill: parent
+                      hoverEnabled: true
+                      cursorShape: Qt.PointingHandCursor
+                      onClicked: root.deleteItem(row.modelData)
+                    }
                   }
                 }
               }
@@ -1417,7 +1648,7 @@ Item {
               y: itemsList.y + (itemsList.contentY / Math.max(1, itemsList.contentHeight - itemsList.height)) * (itemsList.height - height)
             }
 
-            // Empty / loading state.
+            // Empty / no-match state.
             Column {
               anchors.centerIn: parent
               width: Math.min(parent.width - Style.space(40), Style.space(360))
@@ -1428,7 +1659,9 @@ Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: root.loading
                   ? "Loading history…"
-                  : (root.searchQuery !== "" ? "Nothing matches “" + DeckTheme.clip(root.searchQuery, 28) + "”" : "No clips captured yet")
+                  : (root.searchQuery !== ""
+                      ? "Nothing matches “" + DeckTheme.clip(root.searchQuery, 28) + "”"
+                      : (root.activeCategory === "all" ? "No clips captured yet" : "No " + root.categoryLabelOf(root.activeCategory) + " clips yet"))
                 font.family: root.fontFam
                 font.pixelSize: Style.font.title
                 color: Util.alpha(root.fg, 0.7)
@@ -1439,13 +1672,25 @@ Item {
 
               Text {
                 anchors.horizontalCenter: parent.horizontalCenter
+                visible: !root.loading
                 text: root.searchQuery !== ""
-                  ? "Backspace edits the filter · Ctrl+U clears it"
-                  : "Copy something and it lands here instantly"
+                  ? "Esc clears the filter · the clip may live in another category"
+                  : "Copy something anywhere (Ctrl+C) and it lands here instantly.\nSelect a row and press Enter to paste it back."
                 font.family: root.fontFam
                 font.pixelSize: Style.font.caption
                 color: Util.alpha(root.fg, 0.45)
                 horizontalAlignment: Text.AlignHCenter
+                textFormat: Text.PlainText
+              }
+
+              DeckChip {
+                anchors.horizontalCenter: parent.horizontalCenter
+                visible: !root.loading && root.searchQuery !== ""
+                label: "Clear filter"
+                onClicked: {
+                  root.searchQuery = ""
+                  root.refresh()
+                }
               }
             }
           }
@@ -1622,7 +1867,7 @@ Item {
                       if (it === null) return ""
                       var parts = []
                       parts.push(it.source_app && it.source_app !== "" ? it.source_app : "clipboard")
-                      parts.push(DeckTheme.timeAgo(it.created_at, root.nowMs))
+                      parts.push(DeckTheme.stamp(it.created_at))
                       parts.push(DeckTheme.bytes(it.size_bytes))
                       if (it.mime && it.mime !== "text/plain") parts.push(it.mime)
                       return parts.join("   ·   ")
@@ -1631,6 +1876,7 @@ Item {
                     font.pixelSize: Style.font.caption
                     color: Util.alpha(root.fg, 0.55)
                     elide: Text.ElideRight
+                    textFormat: Text.PlainText
                   }
                 }
 
@@ -2153,6 +2399,7 @@ Item {
                 font.family: root.fontFam
                 font.pixelSize: Style.font.caption
                 color: Util.alpha(root.fg, 0.5)
+                textFormat: Text.PlainText
               }
             }
           }

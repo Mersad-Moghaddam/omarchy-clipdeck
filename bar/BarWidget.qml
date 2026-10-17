@@ -23,7 +23,10 @@ BarWidget {
   property int itemCount: 0
   property bool isPaused: false
   property bool connected: false
-  property string runtimeDir: Quickshell.env("XDG_RUNTIME_DIR")
+  property string runtimeDir: {
+    var d = Quickshell.env("XDG_RUNTIME_DIR")
+    return d !== "" ? d : "/tmp/run-clipdeck" // mirrors the daemon fallback
+  }
   property string socketPath: root.runtimeDir + "/clipdeck/clipdeck.sock"
 
   readonly property bool opened: false

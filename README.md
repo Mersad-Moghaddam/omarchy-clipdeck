@@ -87,18 +87,19 @@ the two captures above.
 ClipDeck pairs with the CGO-free Go daemon; every release ships `.deb`,
 `.rpm`, `.apk` and a portable tarball for `amd64` and `arm64`
 ([releases](https://github.com/Mersad-Moghaddam/clipdeck/releases)).
-**Use daemon v0.2.1 or newer** — earlier versions shipped a broken
-clipboard watcher that never stored captured items:
+**Use daemon v0.2.2 or newer** — v0.2.1 is the minimum (v0.2.0 shipped a
+broken clipboard watcher that never stored captured items); v0.2.2 adds
+bounded IPC writes, refcounted blob/thumb GC and a 2-rune search fallback:
 
 ```bash
 # Debian / Ubuntu
-sudo apt install ./clipdeck_0.2.1_amd64.deb
+sudo apt install ./clipdeck_0.2.2_amd64.deb
 
 # Fedora / RHEL / openSUSE
-sudo dnf install ./clipdeck-0.2.1-1.x86_64.rpm
+sudo dnf install ./clipdeck-0.2.2-1.x86_64.rpm
 
 # Alpine
-sudo apk add --allow-untrusted ./clipdeck_0.2.1_x86_64.apk
+sudo apk add --allow-untrusted ./clipdeck_0.2.2_x86_64.apk
 
 # Arch (AUR)
 yay -S clipdeck
@@ -134,6 +135,34 @@ bind = SUPER, V, exec, omarchy-shell shell toggle io.github.mersadmoghaddam.clip
 ```
 
 ---
+
+## Changelog
+### 0.3.0
+* Keyboard cursor re-anchors to the same clip across live reorders — Enter
+  always pastes the row you are looking at, even when a capture lands
+  mid-session.
+* Unrevealed secrets can no longer leak through the transform picker
+  (masked preview, transform requires Ctrl+R reveal).
+* Merge-and-paste now hides the deck before dispatching the paste, like
+  single paste.
+* Pin/delete/merge failures surface as toasts; an optimistic pin rolls back
+  when the daemon rejects it; deleted clips leave no ghost checkboxes;
+  timed-out RPC calls fire their callbacks instead of hanging.
+* Confirm dialogs preselect Cancel — muscle-memory Enter never wipes
+  history.
+* Search with no matches shows a clear-filter chip; empty history explains
+  how capture and paste work.
+* Hover quick-actions (Copy / Pin / ✕) and a batch Merge · Delete strip
+  while multi-selecting; the inspector shows exact timestamps.
+* Reliability: checkbox hit area fixed, external file:// passthrough,
+  repaint on external pin changes, `json-number` syntax coloring, emoji
+  never split mid-surrogate, bar socket falls back like the daemon when
+  XDG_RUNTIME_DIR is unset.
+
+### 0.2.0
+* Initial marketplace release: list/search, keyboard-first paste, multi-
+  select merge, pinned category, sensitive masking, transforms, color and
+  image previews.
 
 ## License
 
