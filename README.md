@@ -83,24 +83,27 @@ the two captures above.
 
 ## Installation
 
-### 1. Install the daemon (`clipdeckd`) on any Linux distribution
-ClipDeck pairs with the CGO-free Go daemon; every release ships `.deb`,
-`.rpm`, `.apk` and portable tarballs for `amd64` and `arm64`
-([releases](https://github.com/Mersad-Moghaddam/clipdeck/releases)).
-**Use daemon v0.4.0 or newer** for generation-guarded queries, stable pagination, and the interactive CLI picker:
+### 1. Install or update the daemon (`clipdeckd`) on any Linux distribution
+
+Run the automated installer script to download or update to the latest release on any distribution:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/main/packaging/install.sh | bash
+```
+
+Or install distribution packages directly from [GitHub releases](https://github.com/Mersad-Moghaddam/clipdeck/releases):
 
 ```bash
 # Debian / Ubuntu
+curl -LO https://github.com/Mersad-Moghaddam/clipdeck/releases/latest/download/clipdeck_0.4.0_amd64.deb
 sudo apt install ./clipdeck_0.4.0_amd64.deb
 
-# Fedora / RHEL / openSUSE
-sudo dnf install ./clipdeck-0.4.0-1.x86_64.rpm
+# Fedora / RHEL
+sudo dnf install https://github.com/Mersad-Moghaddam/clipdeck/releases/latest/download/clipdeck-0.4.0-1.x86_64.rpm
 
 # Alpine Linux
+curl -LO https://github.com/Mersad-Moghaddam/clipdeck/releases/latest/download/clipdeck_0.4.0_x86_64.apk
 sudo apk add --allow-untrusted ./clipdeck_0.4.0_x86_64.apk
-
-# Any distribution via portable installer (binary download or --from-source)
-curl -fsSL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/main/packaging/install.sh | bash
 ```
 
 Then enable and start the user service:

@@ -21,3 +21,29 @@ test('secret previews are never prefetched', () => {
   assert.equal(ctx.mayPrefetch({sensitive:true}), false);
   assert.equal(ctx.mayPrefetch({sensitive:false}), true);
 });
+test('navigation loads near boundary and clamps when more pages exist', () => {
+  // Arrow down near end triggers load
+  const nearEnd = ctx.computeNavigation(194, 1, 200, true);
+  assert.equal(nearEnd.index, 195);
+  assert.equal(nearEnd.shouldLoad, true);
+
+  // Arrow down at end clamps to edge and loads, does NOT wrap to top
+  const atEndWithMore = ctx.computeNavigation(199, 1, 200, true);
+  assert.equal(atEndWithMore.index, 199);
+  assert.equal(atEndWithMore.shouldLoad, true);
+
+  // Arrow down at end without more wraps to top
+  const atEndNoMore = ctx.computeNavigation(199, 1, 200, false);
+  assert.equal(atEndNoMore.index, 0);
+  assert.equal(atEndNoMore.shouldLoad, false);
+
+  // Arrow up at top wraps to bottom
+  const atTop = ctx.computeNavigation(0, -1, 200, true);
+  assert.equal(atTop.index, 199);
+  assert.equal(atTop.shouldLoad, false);
+
+  // PageDown overshooting end clamps to bottom and loads
+  const pagedown = ctx.computeNavigation(198, 6, 200, true);
+  assert.equal(pagedown.index, 199);
+  assert.equal(pagedown.shouldLoad, true);
+});

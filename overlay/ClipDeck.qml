@@ -359,12 +359,14 @@ Item {
 
   function moveSelection(delta) {
     if (root.filteredItems.length === 0) return
-    var n = root.filteredItems.length
-    root.setSelection(((root.selectedIndex + delta) % n + n) % n)
+    var nav = QueryState.computeNavigation(root.selectedIndex, delta, root.filteredItems.length, root.hasMore, 6)
+    if (nav.shouldLoad) root.loadMore()
+    root.setSelection(nav.index)
   }
 
   function selectEdge(last) {
     if (root.filteredItems.length === 0) return
+    if (last && root.hasMore) root.loadMore()
     root.setSelection(last ? root.filteredItems.length - 1 : 0)
   }
 
@@ -487,7 +489,13 @@ Item {
     var o = opts || {}
     root.close()
     root.rpc("paste", { id: item.id, plain: o.plain === true, transform: o.transform || "" }, function(res, err) {
-      if (err) { root.open("{}"); root.notify("Paste failed: " + err, false) }
+      if (err) {
+        if (!root.opened) {
+          Quickshell.execDetached(["notify-send", "-a", "ClipDeck", "-i", "dialog-error", "ClipDeck", "Paste failed: " + err])
+        } else {
+          root.notify("Paste failed: " + err, false)
+        }
+      }
     })
   }
 
@@ -783,7 +791,6 @@ Item {
       return
     }
     if (event.key === Qt.Key_PageDown) {
-      if (root.selectedIndex >= root.filteredItems.length - 6) root.loadMore()
       root.moveSelection(6)
       event.accepted = true
       return
@@ -1039,8 +1046,11 @@ Item {
 
   function handleEvent(event, data) {
     if (event === "paste_failed") {
-      root.open("{}")
-      root.notify("Copied; paste manually with Ctrl+V", false)
+      if (!root.opened) {
+        Quickshell.execDetached(["notify-send", "-a", "ClipDeck", "-i", "edit-paste", "ClipDeck", "Copied to clipboard; paste manually with Ctrl+V"])
+      } else {
+        root.notify("Copied; paste manually with Ctrl+V", false)
+      }
       return
     }
     if (event === "item_added" || event === "item_deleted" || event === "history_cleared" || event === "items_purged") {
