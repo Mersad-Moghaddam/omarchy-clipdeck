@@ -12,3 +12,6 @@ function isCurrent(requestGeneration, currentGeneration) {
 function canAppend(requestGeneration, currentGeneration, offset, length) {
   return isCurrent(requestGeneration, currentGeneration) && offset === length
 }
+function mayPrefetch(item) {
+  return item && item.sensitive !== true
+}

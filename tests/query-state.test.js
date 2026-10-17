@@ -17,3 +17,7 @@ test('pages cannot merge different queries', () => {
   assert.equal(ctx.canAppend(4, 4, 200, 100), false);
   assert.equal(ctx.canAppend(4, 4, 200, 200), true);
 });
+test('secret previews are never prefetched', () => {
+  assert.equal(ctx.mayPrefetch({sensitive:true}), false);
+  assert.equal(ctx.mayPrefetch({sensitive:false}), true);
+});

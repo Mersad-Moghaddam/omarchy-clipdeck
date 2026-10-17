@@ -87,12 +87,15 @@ Item {
   onRawActiveItemChanged: {
     var it = root.rawActiveItem
     if (!it || !it.id) return
+    if (!QueryState.mayPrefetch(it)) return
     if (root.itemCache[it.id]) return
     // If content might be trimmed or rich preview not yet loaded in list stream
     if (it.content.length >= 16000 || ((it.type === "code" || it.type === "json") && !it.rich_preview)) {
+      var generation = root.queryGeneration
       root.rpc("get", { id: it.id }, function (res, err) {
-        if (!err && res && res.item) {
+        if (!err && res && res.item && root.opened && generation === root.queryGeneration) {
           var updated = Object.assign({}, root.itemCache)
+          if (Object.keys(updated).length >= 32) updated = ({})
           updated[res.item.id] = res.item
           root.itemCache = updated
         }
@@ -410,6 +413,20 @@ Item {
     if (at === -1) next.push(item.id)
     else next.splice(at, 1)
     root.revealedIds = next
+    if (at === -1) {
+      var generation = root.queryGeneration
+      root.rpc("get", { id: item.id }, function(res, err) {
+        if (err || !res || !res.item || !root.opened || !root.isRevealed(item.id) || generation !== root.queryGeneration) return
+        var cache = Object.assign({}, root.itemCache)
+        if (Object.keys(cache).length >= 32) cache = ({})
+        cache[item.id] = res.item
+        root.itemCache = cache
+      })
+    } else {
+      var cache = Object.assign({}, root.itemCache)
+      delete cache[item.id]
+      root.itemCache = cache
+    }
   }
 
   function itemById(id) {
@@ -466,10 +483,12 @@ Item {
 
   // ---- Actions ----------------------------------------------------------------
   function pasteItem(item, opts) {
-    if (!item) return
+    if (!item || root.loading || root.conn !== "online") return
     var o = opts || {}
     root.close()
-    root.rpc("paste", { id: item.id, plain: o.plain === true, transform: o.transform || "" }, null)
+    root.rpc("paste", { id: item.id, plain: o.plain === true, transform: o.transform || "" }, function(res, err) {
+      if (err) { root.open("{}"); root.notify("Paste failed: " + err, false) }
+    })
   }
 
   function copyItem(item, opts) {
@@ -1019,7 +1038,14 @@ Item {
   }
 
   function handleEvent(event, data) {
+    if (event === "paste_failed") {
+      root.open("{}")
+      root.notify("Copied; paste manually with Ctrl+V", false)
+      return
+    }
     if (event === "item_added" || event === "item_deleted" || event === "history_cleared" || event === "items_purged") {
+      root.itemCache = ({})
+      root.revealedIds = []
       root.refresh()
       return
     }
