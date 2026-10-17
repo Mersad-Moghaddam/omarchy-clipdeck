@@ -69,6 +69,18 @@ Switch themes and the deck follows instantly — no restart, no stale palette in
 
 ---
 
+## Screenshots
+
+![ClipDeck overlay — Berserk (dark)](screenshots/dark.png)
+
+![ClipDeck overlay — Catppuccin Latte (light)](screenshots/light.png)
+
+The overlay is built entirely from Omarchy theme tokens, so it restyles live —
+no restart — when you switch themes (`omarchy theme set ...`), exactly as in
+the two captures above.
+
+---
+
 ## Installation
 
 ### 1. Install the daemon (`clipdeckd`) — any distro
