@@ -85,24 +85,32 @@ the two captures above.
 
 ### 1. Install or update the daemon (`clipdeckd`) on any Linux distribution
 
-Run the automated installer script to download or update to the latest release on any distribution:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/main/packaging/install.sh | bash
-```
-
-Or install distribution packages directly from [GitHub releases](https://github.com/Mersad-Moghaddam/clipdeck/releases):
+Use daemon **v0.4.0 or newer**. Download distribution packages from
+[GitHub releases](https://github.com/Mersad-Moghaddam/clipdeck/releases).
+Use the versioned URLs below so the package name and release cannot drift apart.
+Verify each downloaded package against the release's `SHA256SUMS` asset before
+installing; stop if either the checksum download or verification fails.
 
 ```bash
 # Debian / Ubuntu
-curl -LO https://github.com/Mersad-Moghaddam/clipdeck/releases/latest/download/clipdeck_0.4.0_amd64.deb
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.0/clipdeck_0.4.0_amd64.deb &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.0/SHA256SUMS &&
+grep -E '  (\./)?clipdeck_0\.4\.0_amd64\.deb$' SHA256SUMS > package.sha256 &&
+test -s package.sha256 && sha256sum -c package.sha256 &&
 sudo apt install ./clipdeck_0.4.0_amd64.deb
 
 # Fedora / RHEL
-sudo dnf install https://github.com/Mersad-Moghaddam/clipdeck/releases/latest/download/clipdeck-0.4.0-1.x86_64.rpm
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.0/clipdeck-0.4.0-1.x86_64.rpm &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.0/SHA256SUMS &&
+grep -E '  (\./)?clipdeck-0\.4\.0-1\.x86_64\.rpm$' SHA256SUMS > package.sha256 &&
+test -s package.sha256 && sha256sum -c package.sha256 &&
+sudo dnf install ./clipdeck-0.4.0-1.x86_64.rpm
 
 # Alpine Linux
-curl -LO https://github.com/Mersad-Moghaddam/clipdeck/releases/latest/download/clipdeck_0.4.0_x86_64.apk
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.0/clipdeck_0.4.0_x86_64.apk &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.0/SHA256SUMS &&
+grep -E '  (\./)?clipdeck_0\.4\.0_x86_64\.apk$' SHA256SUMS > package.sha256 &&
+test -s package.sha256 && sha256sum -c package.sha256 &&
 sudo apk add --allow-untrusted ./clipdeck_0.4.0_x86_64.apk
 ```
 
