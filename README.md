@@ -83,33 +83,27 @@ the two captures above.
 
 ## Installation
 
-### 1. Install the daemon (`clipdeckd`) — any distro
+### 1. Install the daemon (`clipdeckd`) on any Linux distribution
 ClipDeck pairs with the CGO-free Go daemon; every release ships `.deb`,
-`.rpm`, `.apk` and a portable tarball for `amd64` and `arm64`
+`.rpm`, `.apk` and portable tarballs for `amd64` and `arm64`
 ([releases](https://github.com/Mersad-Moghaddam/clipdeck/releases)).
-**Use daemon v0.3.1 or newer** — v0.2.1 is the minimum (v0.2.0 shipped a
-broken clipboard watcher that never stored captured items); v0.3.1 adds
-coalesced code markup, bounded IPC writes, refcounted blob/thumb GC and a 2-rune search fallback:
+**Use daemon v0.4.0 or newer** for generation-guarded queries, stable pagination, and the interactive CLI picker:
 
 ```bash
 # Debian / Ubuntu
-sudo apt install ./clipdeck_0.3.1_amd64.deb
+sudo apt install ./clipdeck_0.4.0_amd64.deb
 
 # Fedora / RHEL / openSUSE
-sudo dnf install ./clipdeck-0.3.1-1.x86_64.rpm
+sudo dnf install ./clipdeck-0.4.0-1.x86_64.rpm
 
-# Alpine
-sudo apk add --allow-untrusted ./clipdeck_0.3.1_x86_64.apk
-```
+# Alpine Linux
+sudo apk add --allow-untrusted ./clipdeck_0.4.0_x86_64.apk
 
-# Arch (AUR)
-yay -S clipdeck
-
-# Any distro, portable installer (downloads or --from-source)
+# Any distribution via portable installer (binary download or --from-source)
 curl -fsSL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/main/packaging/install.sh | bash
 ```
 
-Then enable the user service (package installs enable it for you):
+Then enable and start the user service:
 
 ```bash
 systemctl --user enable --now clipdeckd
@@ -138,6 +132,12 @@ bind = SUPER, V, exec, omarchy-shell shell toggle io.github.mersadmoghaddam.clip
 ---
 
 ## Changelog
+### 0.4.0
+* Generation-guarded queries: Monotonic request tokens reject stale async query replies, eliminating list flickering during fast search typing.
+* Pre-paged category filtering: Evaluates category filters and search queries server-side before pagination offsets, ensuring smooth scrolling and stable page boundaries.
+* Guarded previews and bounded cache: Preview cache is bounded to 32 entries; sensitive items are never prefetched in the background without explicit reveal.
+* Reliable paste fallback: Surfaces paste failure events with automatic user notification and safe clipboard fallback.
+
 ### 0.3.1
 * Zero-lag hover quick actions: Single-area hit-tested action pill eliminates mouse jitter and layout thrashing.
 * Full Persian & markdown preview: Dynamic `get` fetch for large/slimmed clips delivers 100% untruncated content in the inspector.
