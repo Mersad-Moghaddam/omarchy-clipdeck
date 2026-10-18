@@ -1,7 +1,7 @@
 # ClipDeck (Omarchy Shell Plugin)
 
 [![Omarchy 4](https://img.shields.io/badge/Omarchy-4_(Quattro)-blue?style=flat-square)](https://omarchy.org/)
-[![Plugin Release](https://img.shields.io/badge/plugin-v0.5.0-blueviolet?style=flat-square)](https://github.com/Mersad-Moghaddam/omarchy-clipdeck/releases/tag/v0.5.0)
+[![Plugin Release](https://img.shields.io/badge/plugin-v0.5.2-blueviolet?style=flat-square)](https://github.com/Mersad-Moghaddam/omarchy-clipdeck/releases/tag/v0.5.2)
 [![Companion Daemon](https://img.shields.io/badge/companion-v0.5.2-success?style=flat-square)](https://github.com/Mersad-Moghaddam/clipdeck/releases/tag/v0.5.2)
 [![Platform](https://img.shields.io/badge/platform-Wayland%20%7C%20X11-informational?style=flat-square)](https://github.com/Mersad-Moghaddam/clipdeck/blob/v0.5.2/docs/desktop-support.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
@@ -73,6 +73,14 @@ A keyboard-first clipboard manager plugin for [Omarchy](https://omarchy.org/) 4 
 ---
 
 ## Installation
+
+**Current release: plugin v0.5.2 + companion v0.5.2.** Both repositories publish
+separate releases: this repository contains the Omarchy plugin; download daemon,
+CLI and standalone GUI artifacts from the [companion release](https://github.com/Mersad-Moghaddam/clipdeck/releases/tag/v0.5.2).
+This plugin release updates setup guidance and metadata, not the Omarchy overlay.
+
+Jump to [Omarchy installation](#path-a-omarchy-4-users-hyprland) or
+[standalone installation](#path-b-other-linux-distributions-standalone-app).
 
 > [!WARNING]
 > **Zorin / GNOME Wayland:** automatic clipboard capture is not supported by the current release.
@@ -281,7 +289,11 @@ clipdeck history --limit 20
 
 ## Changelog
 
-### Companion v0.5.2 (plugin remains v0.5.0)
+### 0.5.2
+
+* Plugin release metadata and README now reference the public companion v0.5.2.
+* Omarchy overlay code, theme integration and keyboard behavior are unchanged.
+* Companion changes below ship in the separate daemon/standalone repository.
 
 * Existing history directories are restricted to `0700`; private directory symlinks are rejected.
 * Explicit systemd directory modes and actionable GNOME Wayland capture diagnostics.

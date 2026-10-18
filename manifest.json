@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.mersadmoghaddam.clipdeck",
   "name": "ClipDeck",
-  "version": "0.5.0",
+  "version": "0.5.2",
   "author": "Mersad Moghaddam",
   "license": "MIT",
   "description": "A beautiful, keyboard-first clipboard manager with persistent history, rich previews, and quiet intelligence.",
