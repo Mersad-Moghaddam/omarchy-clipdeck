@@ -85,7 +85,7 @@ the two captures above.
 
 ### 1. Install or update the companion daemon (`clipdeckd`)
 
-Use daemon **v0.5.0 or newer**. Download public distribution packages from
+Use daemon **v0.5.1 or newer**. Download public distribution packages from
 [GitHub releases](https://github.com/Mersad-Moghaddam/clipdeck/releases).
 Use the versioned URLs below so the package name and release cannot drift apart.
 Verify each downloaded package against the release's `SHA256SUMS` asset before
@@ -94,8 +94,8 @@ installing; stop if either the checksum download or verification fails.
 **Recommended user-local installation (no root required):**
 
 ```bash
-curl -fL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/v0.5.0/packaging/install.sh -o /tmp/clipdeck-install.sh &&
-bash /tmp/clipdeck-install.sh --version 0.5.0 --daemon-only
+curl -fL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/v0.5.1/packaging/install.sh -o /tmp/clipdeck-install.sh &&
+bash /tmp/clipdeck-install.sh --version 0.5.1 --daemon-only
 ```
 
 The installer verifies release checksums, installs the daemon and CLI under
@@ -104,15 +104,15 @@ user, **not with sudo**. Existing history/configuration are preserved on upgrade
 On Omarchy, install `wl-clipboard` and `wtype` if `clipdeck doctor` reports them
 missing. Review the downloaded script before executing it if preferred.
 
-Alternatively, use the [v0.5.0 packages and SHA256SUMS](https://github.com/Mersad-Moghaddam/clipdeck/releases/tag/v0.5.0).
+Alternatively, use the [v0.5.1 packages and SHA256SUMS](https://github.com/Mersad-Moghaddam/clipdeck/releases/tag/v0.5.1).
 For Debian/Ubuntu amd64:
 
 ```bash
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.0/clipdeck_0.5.0_amd64.deb &&
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.0/SHA256SUMS &&
-grep -E '  (\./)?clipdeck_0\.5\.0_amd64\.deb$' SHA256SUMS > package.sha256 &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.1/clipdeck_0.5.1_amd64.deb &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.1/SHA256SUMS &&
+grep -E '  (\./)?clipdeck_0\.5\.1_amd64\.deb$' SHA256SUMS > package.sha256 &&
 test -s package.sha256 && sha256sum -c package.sha256 &&
-sudo apt install ./clipdeck_0.5.0_amd64.deb
+sudo apt install ./clipdeck_0.5.1_amd64.deb
 ```
 
 RPM, APK and ARM64 daemon artifacts are also available; their availability is
@@ -124,7 +124,7 @@ The shell plugin requires Omarchy 4; Ubuntu, Zorin and i3 users should use the
 independent Qt popup from the companion repository, **not this shell plugin**:
 
 ```bash
-bash /tmp/clipdeck-install.sh --version 0.5.0 --with-ui
+bash /tmp/clipdeck-install.sh --version 0.5.1 --with-ui
 ```
 
 Download the installer using the command above first. The optional GUI requires
@@ -132,7 +132,7 @@ Python **3.12+**, `python3-venv`, compatible Qt runtime libraries, and a graphic
 desktop. It uses a private environment, not system-wide pip. Open **ClipDeck**
 from the application menu or run `~/.local/bin/clipdeck-ui`.
 X11 additionally needs `xclip`, `xdotool` and `xprop`; i3 floating/shortcut rules
-are opt-in. See the [desktop setup and support matrix](https://github.com/Mersad-Moghaddam/clipdeck/blob/v0.5.0/docs/desktop-support.md)
+are opt-in. See the [desktop setup and support matrix](https://github.com/Mersad-Moghaddam/clipdeck/blob/v0.5.1/docs/desktop-support.md)
 for exact Debian/Ubuntu dependencies and limitations. Ubuntu 24.04 userspace and
 nested i3/X11 were tested; full Zorin login and every Wayland compositor were not.
 GNOME Wayland clipboard watching is unsupported; use an X11 session. Standalone
