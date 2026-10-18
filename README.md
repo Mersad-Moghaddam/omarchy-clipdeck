@@ -83,36 +83,60 @@ the two captures above.
 
 ## Installation
 
-### 1. Install or update the daemon (`clipdeckd`) on any Linux distribution
+### 1. Install or update the companion daemon (`clipdeckd`)
 
-Use daemon **v0.4.3 or newer**. Download distribution packages from
+Use daemon **v0.5.0 or newer**. Download public distribution packages from
 [GitHub releases](https://github.com/Mersad-Moghaddam/clipdeck/releases).
 Use the versioned URLs below so the package name and release cannot drift apart.
 Verify each downloaded package against the release's `SHA256SUMS` asset before
 installing; stop if either the checksum download or verification fails.
 
+**Recommended user-local installation (no root required):**
+
 ```bash
-# Debian / Ubuntu
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.3/clipdeck_0.4.3_amd64.deb &&
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.3/SHA256SUMS &&
-grep -E '  (\./)?clipdeck_0\.4\.3_amd64\.deb$' SHA256SUMS > package.sha256 &&
-test -s package.sha256 && sha256sum -c package.sha256 &&
-sudo apt install ./clipdeck_0.4.3_amd64.deb
-
-# Fedora / RHEL
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.3/clipdeck-0.4.3-1.x86_64.rpm &&
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.3/SHA256SUMS &&
-grep -E '  (\./)?clipdeck-0\.4\.3-1\.x86_64\.rpm$' SHA256SUMS > package.sha256 &&
-test -s package.sha256 && sha256sum -c package.sha256 &&
-sudo dnf install ./clipdeck-0.4.3-1.x86_64.rpm
-
-# Alpine Linux
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.3/clipdeck_0.4.3_x86_64.apk &&
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.3/SHA256SUMS &&
-grep -E '  (\./)?clipdeck_0\.4\.3_x86_64\.apk$' SHA256SUMS > package.sha256 &&
-test -s package.sha256 && sha256sum -c package.sha256 &&
-sudo apk add --allow-untrusted ./clipdeck_0.4.3_x86_64.apk
+curl -fL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/v0.5.0/packaging/install.sh -o /tmp/clipdeck-install.sh &&
+bash /tmp/clipdeck-install.sh --version 0.5.0 --daemon-only
 ```
+
+The installer verifies release checksums, installs the daemon and CLI under
+`~/.local/bin`, and enables the user service. Run it as your normal desktop
+user, **not with sudo**. Existing history/configuration are preserved on upgrade.
+On Omarchy, install `wl-clipboard` and `wtype` if `clipdeck doctor` reports them
+missing. Review the downloaded script before executing it if preferred.
+
+Alternatively, use the [v0.5.0 packages and SHA256SUMS](https://github.com/Mersad-Moghaddam/clipdeck/releases/tag/v0.5.0).
+For Debian/Ubuntu amd64:
+
+```bash
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.0/clipdeck_0.5.0_amd64.deb &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.0/SHA256SUMS &&
+grep -E '  (\./)?clipdeck_0\.5\.0_amd64\.deb$' SHA256SUMS > package.sha256 &&
+test -s package.sha256 && sha256sum -c package.sha256 &&
+sudo apt install ./clipdeck_0.5.0_amd64.deb
+```
+
+RPM, APK and ARM64 daemon artifacts are also available; their availability is
+not a claim that every distribution or architecture has been run-tested.
+
+### Not using Omarchy? Install the standalone app instead
+
+The shell plugin requires Omarchy 4; Ubuntu, Zorin and i3 users should use the
+independent Qt popup from the companion repository, **not this shell plugin**:
+
+```bash
+bash /tmp/clipdeck-install.sh --version 0.5.0 --with-ui
+```
+
+Download the installer using the command above first. The optional GUI requires
+Python **3.12+**, `python3-venv`, compatible Qt runtime libraries, and a graphical
+desktop. It uses a private environment, not system-wide pip. Open **ClipDeck**
+from the application menu or run `~/.local/bin/clipdeck-ui`.
+X11 additionally needs `xclip`, `xdotool` and `xprop`; i3 floating/shortcut rules
+are opt-in. See the [desktop setup and support matrix](https://github.com/Mersad-Moghaddam/clipdeck/blob/v0.5.0/docs/desktop-support.md)
+for exact Debian/Ubuntu dependencies and limitations. Ubuntu 24.04 userspace and
+nested i3/X11 were tested; full Zorin login and every Wayland compositor were not.
+GNOME Wayland clipboard watching is unsupported; use an X11 session. Standalone
+Wayland paste falls back explicitly to copy-only when safe targeting is unavailable.
 
 **Manual setup required:** the native companion is installed separately; the plugin never downloads packages or requests root. Systemd-based native packages start the daemon automatically at the next graphical login. For this session, or an older installation, open ClipDeck and click **Start & enable at login**. No terminal service command is required. The action only enables/starts the already-installed user service; it cannot install a missing daemon. Non-systemd sessions need their own compositor autostart entry.
 
