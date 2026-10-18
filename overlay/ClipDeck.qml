@@ -9,6 +9,7 @@ import qs.Commons
 import qs.Ui
 import "./DeckTheme.js" as DeckTheme
 import "./QueryState.js" as QueryState
+import "./DaemonSetup.js" as DaemonSetup
 import "../components"
 
 // ClipDeck overlay — a keyboard-first, theme-native view over the clipdeckd
@@ -1950,7 +1951,7 @@ Item {
               Text {
                 anchors.horizontalCenter: parent.horizontalCenter
                 visible: root.conn !== "connecting"
-                text: "Start the daemon, then retry — the deck also reconnects on its own:"
+                text: "Companion installed? Enable automatic startup below. Otherwise install it using the README first."
                 font.family: root.fontFam
                 font.pixelSize: Style.font.caption
                 color: Util.alpha(root.fg, 0.6)
@@ -1969,7 +1970,7 @@ Item {
                 Text {
                   id: offlineCmd
                   anchors.centerIn: parent
-                  text: "systemctl --user start clipdeckd"
+                  text: "Start & enable at login"
                   font.family: root.codeFam
                   font.pixelSize: Style.font.caption
                   color: Util.alpha(root.fg, 0.8)
@@ -1979,10 +1980,9 @@ Item {
                   anchors.fill: parent
                   cursorShape: Qt.PointingHandCursor
                   onClicked: {
-                    // The daemon is unreachable by definition here, so copy
-                    // via a detached helper instead of an RPC.
-                    Quickshell.execDetached(["bash", "-lc", "printf '%s' 'systemctl --user start clipdeckd' | wl-copy"])
-                    root.notify("Command copied — paste it in a terminal", true)
+                    DaemonSetup.enableAtLogin(function(command) { Quickshell.execDetached(command) })
+                    root.notify("Startup requested — reconnecting. If unavailable, install the companion first.", true)
+                    root.connect()
                   }
                 }
               }

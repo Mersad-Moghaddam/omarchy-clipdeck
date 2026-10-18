@@ -85,7 +85,7 @@ the two captures above.
 
 ### 1. Install or update the daemon (`clipdeckd`) on any Linux distribution
 
-Use daemon **v0.4.2 or newer**. Download distribution packages from
+Use daemon **v0.4.3 or newer**. Download distribution packages from
 [GitHub releases](https://github.com/Mersad-Moghaddam/clipdeck/releases).
 Use the versioned URLs below so the package name and release cannot drift apart.
 Verify each downloaded package against the release's `SHA256SUMS` asset before
@@ -93,31 +93,30 @@ installing; stop if either the checksum download or verification fails.
 
 ```bash
 # Debian / Ubuntu
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.2/clipdeck_0.4.2_amd64.deb &&
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.2/SHA256SUMS &&
-grep -E '  (\./)?clipdeck_0\.4\.2_amd64\.deb$' SHA256SUMS > package.sha256 &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.3/clipdeck_0.4.3_amd64.deb &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.3/SHA256SUMS &&
+grep -E '  (\./)?clipdeck_0\.4\.3_amd64\.deb$' SHA256SUMS > package.sha256 &&
 test -s package.sha256 && sha256sum -c package.sha256 &&
-sudo apt install ./clipdeck_0.4.2_amd64.deb
+sudo apt install ./clipdeck_0.4.3_amd64.deb
 
 # Fedora / RHEL
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.2/clipdeck-0.4.2-1.x86_64.rpm &&
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.2/SHA256SUMS &&
-grep -E '  (\./)?clipdeck-0\.4\.2-1\.x86_64\.rpm$' SHA256SUMS > package.sha256 &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.3/clipdeck-0.4.3-1.x86_64.rpm &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.3/SHA256SUMS &&
+grep -E '  (\./)?clipdeck-0\.4\.3-1\.x86_64\.rpm$' SHA256SUMS > package.sha256 &&
 test -s package.sha256 && sha256sum -c package.sha256 &&
-sudo dnf install ./clipdeck-0.4.2-1.x86_64.rpm
+sudo dnf install ./clipdeck-0.4.3-1.x86_64.rpm
 
 # Alpine Linux
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.2/clipdeck_0.4.2_x86_64.apk &&
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.2/SHA256SUMS &&
-grep -E '  (\./)?clipdeck_0\.4\.2_x86_64\.apk$' SHA256SUMS > package.sha256 &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.3/clipdeck_0.4.3_x86_64.apk &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.4.3/SHA256SUMS &&
+grep -E '  (\./)?clipdeck_0\.4\.3_x86_64\.apk$' SHA256SUMS > package.sha256 &&
 test -s package.sha256 && sha256sum -c package.sha256 &&
-sudo apk add --allow-untrusted ./clipdeck_0.4.2_x86_64.apk
+sudo apk add --allow-untrusted ./clipdeck_0.4.3_x86_64.apk
 ```
 
-Then enable and start the user service:
+**Manual setup required:** the native companion is installed separately; the plugin never downloads packages or requests root. Systemd-based native packages start the daemon automatically at the next graphical login. For this session, or an older installation, open ClipDeck and click **Start & enable at login**. No terminal service command is required. The action only enables/starts the already-installed user service; it cannot install a missing daemon. Non-systemd sessions need their own compositor autostart entry.
 
 ```bash
-systemctl --user enable --now clipdeckd
 clipdeck doctor   # verify wl-clipboard, wtype, socket, database
 ```
 
@@ -143,6 +142,12 @@ bind = SUPER, V, exec, omarchy-shell shell toggle io.github.mersadmoghaddam.clip
 ---
 
 ## Changelog
+### 0.4.3
+* Imported image content now uses only the validated blob path, dropping symlink and missing-file content references.
+* Companion blob writes reject unsafe extensions and non-regular cached targets, use exclusive random temporary files, and tolerate concurrent identical saves. Cached thumbnail symlinks are rejected too.
+* Native systemd packages start at graphical login; the offline panel offers an explicit **Start & enable at login** action instead of copying a terminal command.
+* Expanded filesystem and startup regression coverage. The companion remains a separately installed, manual-setup dependency.
+
 ### 0.4.2
 * Companion security hardening: Enforces strict lexical path containment (`isManagedItemPath`) and `os.Lstat` regular file verification in the companion daemon's `SanitizeImportedItem` and `gcItemFile`. Completely neutralizes directory traversal (`..`), foreign path injection, and symlink attacks during history import, item deletion, clearing, and expiry GC.
 

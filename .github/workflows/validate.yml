@@ -20,6 +20,13 @@ jobs:
           jq -e '.schemaVersion == 1' manifest.json
           jq -e 'has("id") and has("name") and has("version") and has("kinds") and has("entryPoints")' manifest.json
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run plugin regression tests
+        run: node --test tests/*.test.js
+
       - name: Verify no symlinks
         run: |
           symlinks=$(find . -name .git -prune -o -type l -print)
