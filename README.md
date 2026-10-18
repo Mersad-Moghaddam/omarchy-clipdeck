@@ -2,8 +2,8 @@
 
 [![Omarchy 4](https://img.shields.io/badge/Omarchy-4_(Quattro)-blue?style=flat-square)](https://omarchy.org/)
 [![Plugin Release](https://img.shields.io/badge/plugin-v0.5.0-blueviolet?style=flat-square)](https://github.com/Mersad-Moghaddam/omarchy-clipdeck/releases/tag/v0.5.0)
-[![Companion Daemon](https://img.shields.io/badge/companion-v0.5.1-success?style=flat-square)](https://github.com/Mersad-Moghaddam/clipdeck/releases/tag/v0.5.1)
-[![Platform](https://img.shields.io/badge/platform-Wayland%20%7C%20X11-informational?style=flat-square)](https://github.com/Mersad-Moghaddam/clipdeck/blob/v0.5.1/docs/desktop-support.md)
+[![Companion Daemon](https://img.shields.io/badge/companion-v0.5.2-success?style=flat-square)](https://github.com/Mersad-Moghaddam/clipdeck/releases/tag/v0.5.2)
+[![Platform](https://img.shields.io/badge/platform-Wayland%20%7C%20X11-informational?style=flat-square)](https://github.com/Mersad-Moghaddam/clipdeck/blob/v0.5.2/docs/desktop-support.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 
 A keyboard-first clipboard manager plugin for [Omarchy](https://omarchy.org/) 4 (Quattro) and modern Linux desktops. Features persistent SQLite FTS5 search, split-pane inspectors, live syntax highlighting, Persian text and digit normalization, and dynamic Omarchy theme synchronization.
@@ -11,7 +11,7 @@ A keyboard-first clipboard manager plugin for [Omarchy](https://omarchy.org/) 4 
 > [!IMPORTANT]
 > **Architecture: Omarchy Shell Plugin + Pure-Go Daemon (`clipdeckd`)**
 > - **On Omarchy:** The UI loads directly in `omarchy-shell` as a native QML overlay, adapting live to active Omarchy theme tokens (`Color.menu.*`, `Style.*`). It communicates with the companion daemon over a local Unix domain socket with UID verification.
-> - **On Other Linux Desktops (Ubuntu, Fedora, Arch, Debian, i3, etc.):** Run ClipDeck with the standalone Qt popup companion (`clipdeck-ui`), retaining the exact same keyboard shortcuts, search performance, and aesthetics.
+> - **On other desktops:** use the standalone Qt popup (`clipdeck-ui`). Outside Omarchy it uses Qt's desktop palette and font, with normal window decorations. GTK theme matching depends on Qt platform-theme integration. Some shortcuts differ from the shell overlay below.
 
 > [!TIP]
 > ClipDeck is submitted to the [Omarchy community plugin marketplace](https://plugins.omarchy.org/). You can also install directly from this repository with the instructions below.
@@ -74,6 +74,15 @@ A keyboard-first clipboard manager plugin for [Omarchy](https://omarchy.org/) 4 
 
 ## Installation
 
+> [!WARNING]
+> **Zorin / GNOME Wayland:** automatic clipboard capture is not supported by the current release.
+> Installing `wl-clipboard` or `wtype` does not enable GNOME clipboard monitoring.
+> Log out and select an Xorg/X11 session from the login screen. Install the X11
+> dependencies in the [desktop setup guide](https://github.com/Mersad-Moghaddam/clipdeck/blob/main/docs/desktop-support.md).
+> Native `.deb`, `.rpm`, and `.apk` packages contain the daemon and CLI, **not the Qt popup**.
+> Use `--with-ui` for the standalone interface. Package availability does not mean
+> every listed distribution or ARM64 environment has been run-tested.
+
 Choose the setup matching your desktop environment:
 
 ### Path A: Omarchy 4 Users (Hyprland)
@@ -85,8 +94,8 @@ Follow these steps to install the companion daemon and register the Omarchy shel
 Install the pure-Go companion daemon using the checksummed user-local installer (**recommended**, no `sudo` required):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/v0.5.1/packaging/install.sh -o /tmp/clipdeck-install.sh &&
-bash /tmp/clipdeck-install.sh --version 0.5.1 --daemon-only
+curl -fsSL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/v0.5.2/packaging/install.sh -o /tmp/clipdeck-install.sh &&
+bash /tmp/clipdeck-install.sh --version 0.5.2 --daemon-only
 ```
 
 *This installs `clipdeck` and `clipdeckd` into `~/.local/bin` and enables the systemd user service.*
@@ -128,13 +137,13 @@ clipdeck doctor
 
 If you are running **Ubuntu, Debian, Fedora, Arch, Alpine, i3, or another desktop environment**, use the standalone companion app with its dedicated Qt popup.
 
-#### 1. Universal One-Line Installer (Recommended)
+#### 1. User-local installer (recommended)
 
 Installs the daemon, CLI, and standalone GUI into `~/.local/bin` without root privileges:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/v0.5.1/packaging/install.sh -o /tmp/clipdeck-install.sh &&
-bash /tmp/clipdeck-install.sh --version 0.5.1 --with-ui
+curl -fsSL https://raw.githubusercontent.com/Mersad-Moghaddam/clipdeck/v0.5.2/packaging/install.sh -o /tmp/clipdeck-install.sh &&
+bash /tmp/clipdeck-install.sh --version 0.5.2 --with-ui
 ```
 
 *Requirements for `--with-ui`: Python 3.12+, `python3-venv`, and desktop Qt runtime libraries. On Ubuntu/Debian, install prerequisite packages first: `sudo apt install python3-venv xclip xdotool`.*
@@ -148,49 +157,49 @@ clipdeck-ui
 
 #### 2. Native Distribution Packages
 
-Pre-built packages for **v0.5.1** are published on the [GitHub Releases page](https://github.com/Mersad-Moghaddam/clipdeck/releases/tag/v0.5.1). Each snippet below verifies SHA-256 integrity before installation.
+Pre-built packages for **v0.5.2** are published on the [GitHub Releases page](https://github.com/Mersad-Moghaddam/clipdeck/releases/tag/v0.5.2). Each snippet below verifies SHA-256 integrity before installation.
 
 ##### Debian / Ubuntu / Linux Mint / Pop!_OS / Zorin OS (`.deb`)
 
 ```bash
 # For amd64 (x86_64)
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.1/clipdeck_0.5.1_amd64.deb &&
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.1/SHA256SUMS &&
-grep -E '  (\./)?clipdeck_0\.5\.1_amd64\.deb$' SHA256SUMS > package.sha256 &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.2/clipdeck_0.5.2_amd64.deb &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.2/SHA256SUMS &&
+grep -E '  (\./)?clipdeck_0\.5\.2_amd64\.deb$' SHA256SUMS > package.sha256 &&
 test -s package.sha256 && sha256sum -c package.sha256 &&
-sudo apt install ./clipdeck_0.5.1_amd64.deb
+sudo apt install ./clipdeck_0.5.2_amd64.deb
 
 # For arm64 (aarch64)
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.1/clipdeck_0.5.1_arm64.deb &&
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.1/SHA256SUMS &&
-grep -E '  (\./)?clipdeck_0\.5\.1_arm64\.deb$' SHA256SUMS > package.sha256 &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.2/clipdeck_0.5.2_arm64.deb &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.2/SHA256SUMS &&
+grep -E '  (\./)?clipdeck_0\.5\.2_arm64\.deb$' SHA256SUMS > package.sha256 &&
 test -s package.sha256 && sha256sum -c package.sha256 &&
-sudo apt install ./clipdeck_0.5.1_arm64.deb
+sudo apt install ./clipdeck_0.5.2_arm64.deb
 ```
 
 ##### Fedora / RHEL / Rocky Linux / AlmaLinux (`.rpm`)
 
 ```bash
 # For x86_64
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.1/clipdeck-0.5.1-1.x86_64.rpm &&
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.1/SHA256SUMS &&
-grep -E '  (\./)?clipdeck-0\.5\.1-1\.x86_64\.rpm$' SHA256SUMS > package.sha256 &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.2/clipdeck-0.5.2-1.x86_64.rpm &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.2/SHA256SUMS &&
+grep -E '  (\./)?clipdeck-0\.5\.2-1\.x86_64\.rpm$' SHA256SUMS > package.sha256 &&
 test -s package.sha256 && sha256sum -c package.sha256 &&
-sudo dnf install ./clipdeck-0.5.1-1.x86_64.rpm
+sudo dnf install ./clipdeck-0.5.2-1.x86_64.rpm
 
 # For aarch64 (ARM64)
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.1/clipdeck-0.5.1-1.aarch64.rpm &&
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.1/SHA256SUMS &&
-grep -E '  (\./)?clipdeck-0\.5\.1-1\.aarch64\.rpm$' SHA256SUMS > package.sha256 &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.2/clipdeck-0.5.2-1.aarch64.rpm &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.2/SHA256SUMS &&
+grep -E '  (\./)?clipdeck-0\.5\.2-1\.aarch64\.rpm$' SHA256SUMS > package.sha256 &&
 test -s package.sha256 && sha256sum -c package.sha256 &&
-sudo dnf install ./clipdeck-0.5.1-1.aarch64.rpm
+sudo dnf install ./clipdeck-0.5.2-1.aarch64.rpm
 ```
 
 ##### openSUSE (`.rpm`)
 
 ```bash
 # Verify the RPM package using the Fedora block above, then install:
-sudo zypper install ./clipdeck-0.5.1-1.x86_64.rpm
+sudo zypper install ./clipdeck-0.5.2-1.x86_64.rpm
 ```
 
 ##### Arch Linux / Manjaro / EndeavourOS (`PKGBUILD`)
@@ -207,19 +216,18 @@ makepkg -si
 
 ```bash
 # For x86_64
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.1/clipdeck_0.5.1_x86_64.apk &&
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.1/SHA256SUMS &&
-grep -E '  (\./)?clipdeck_0\.5\.1_x86_64\.apk$' SHA256SUMS > package.sha256 &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.2/clipdeck_0.5.2_x86_64.apk &&
+curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.2/SHA256SUMS &&
+grep -E '  (\./)?clipdeck_0\.5\.2_x86_64\.apk$' SHA256SUMS > package.sha256 &&
 test -s package.sha256 && sha256sum -c package.sha256 &&
-sudo apk add --allow-untrusted ./clipdeck_0.5.1_x86_64.apk
+sudo apk add --allow-untrusted ./clipdeck_0.5.2_x86_64.apk
 ```
 
 ##### Generic Linux (Prebuilt Tarball)
 
-```bash
-curl -fLO https://github.com/Mersad-Moghaddam/clipdeck/releases/download/v0.5.1/clipdeck_0.5.1_linux_amd64.tar.gz &&
-tar -xzf clipdeck_0.5.1_linux_amd64.tar.gz -C ~/.local/bin/
-```
+Use the checksum-verifying installer above with `--daemon-only`. It validates
+archive paths and installs the binaries safely. Do not extract unverified
+archives directly into your executable directory.
 
 ---
 
@@ -232,7 +240,6 @@ tar -xzf clipdeck_0.5.1_linux_amd64.tar.gz -C ~/.local/bin/
 - **In-App Activation:** If the daemon is not running when you open the Omarchy overlay, click **Start & enable at login** in the notice pane to activate the service immediately.
 - **i3 / X11 Window Manager Setup:** Add floating and positioning rules to your `~/.config/i3/config`:
   ```ini
-  for_window [app_id="clipdeck-ui"] floating enable, border pixel 2
   for_window [class="clipdeck-ui"] floating enable, border pixel 2
   bindsym Mod4+v exec --no-startup-id clipdeck-ui
   ```
@@ -274,9 +281,16 @@ clipdeck history --limit 20
 
 ## Changelog
 
+### Companion v0.5.2 (plugin remains v0.5.0)
+
+* Existing history directories are restricted to `0700`; private directory symlinks are rejected.
+* Explicit systemd directory modes and actionable GNOME Wayland capture diagnostics.
+* Standalone desktop palette/font selection and normal window decorations outside Omarchy.
+* Native GNOME Wayland capture remains unsupported; use an Xorg/X11 session.
+
 ### 0.5.0
 * **Standalone Desktop UI:** Shipped an independent Qt-based popup companion for non-Omarchy environments (Debian, Ubuntu, Fedora, Arch, Alpine, and i3/X11 desktops) with identical shortcuts, search speed, and Omarchy design tokens.
-* **Companion Daemon v0.5.1:** Fixed search query and category filter persistence across popup reopenings while dynamically rebinding the active paste target.
+* **Companion Daemon v0.5.2:** Fixed search query and category filter persistence across popup reopenings while dynamically rebinding the active paste target.
 * **Multi-Distribution Releases:** Automated prebuilt release artifacts for Debian/Ubuntu (`.deb`), Fedora/RHEL (`.rpm`), Alpine (`.apk`), Arch Linux (`PKGBUILD`), and portable tarballs for both `amd64` and `arm64`.
 * **Zero-Root Universal Installer:** Introduced a guided user-local installer script (`install.sh`) supporting automated SHA-256 integrity checks, `--daemon-only`, and `--with-ui` workflows.
 * **Storage & Permission Hardening:** Tightened data directory permissions to `0700`, added atomic database backup during migrations, and enforced safe transactional rollback on installation failure.
